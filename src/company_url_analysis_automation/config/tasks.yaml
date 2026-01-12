@@ -1,0 +1,42 @@
+---
+validate_urls_and_extract_company_names:
+  description: |-
+    Process the list of URLs provided in {urls}. For each URL:
+    1. Verify that the URL is accessible and valid
+    2. Scrape the website content to extract the main company name
+    3. Note any URLs that are not accessible or invalid
+    4. Create a preliminary list with URL, status (valid/invalid), and company name when available
+  expected_output: 'A structured list showing for each URL: the original URL, validation
+    status (valid/invalid), and the extracted company name. Format the results clearly
+    indicating which URLs were successfully processed and which ones encountered issues.'
+  agent: url_validator_and_company_name_extractor
+research_company_details:
+  description: |-
+    For each valid company identified in the previous step, research and find:
+    1. The nationality/country of origin of the company
+    2. The year the company was founded/established
+    3. Use reliable sources and cross-reference information to ensure accuracy
+    4. If information is not available, clearly indicate that the data could not be found
+  expected_output: 'Detailed research results for each company including: company
+    name, nationality/country of origin, founding year, and sources used for verification.
+    Clearly indicate when information could not be found or verified.'
+  agent: company_research_analyst
+  context:
+  - validate_urls_and_extract_company_names
+compile_final_company_analysis_report:
+  description: |-
+    Compile all gathered information into a CSV format. Output ONLY the CSV data with:
+    1. Header row: Original URL,Company Name,Nationality,Founding Year,Status
+    2. One row per company with the collected information
+    3. Use "Unknown" if information could not be found
+    4. Use "Invalid" in Status column if URL was not accessible
+    Do NOT include any text before or after the CSV data. Output ONLY the raw CSV.
+  expected_output: |-
+    Raw CSV data with header row and data rows. Example format:
+    Original URL,Company Name,Nationality,Founding Year,Status
+    https://example.com,Example Corp,France,2020,Valid
+    https://other.com,Other Inc,USA,2018,Valid
+  agent: data_compiler_and_reporter
+  context:
+  - validate_urls_and_extract_company_names
+  - research_company_details
