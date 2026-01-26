@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CrewAI multi-agent system that analyzes company URLs. Given a list of URLs, it validates them, extracts company names, researches company details (nationality, founding year), and compiles a comprehensive report.
+**Protocole AUTO MASS PROJECT** - Systeme multi-agents CrewAI pour le sourcing et l'enrichissement de leads qualifies pour **WakaStart** (plateforme SaaS de WakaStellar).
+
+**Objectif** : Identifier, analyser et scorer des entreprises ayant une composante SaaS (averee ou cachee) pour determiner leur pertinence vis-a-vis des offres WakaStart.
+
+**Cibles** : StartUp, ScaleUp, Legacy avec composante SaaS
+**Geographie** : France (priorite) + International (si lien fort France)
 
 ## Commands
 
@@ -30,31 +35,120 @@ uv add <package-name>
 
 ## Architecture
 
-### Agent Pipeline (Sequential)
+### Workflow d'execution (5 taches sequentielles)
 
-1. **url_validator_and_company_name_extractor** - Validates URLs and extracts company names using `ScrapeWebsiteTool`
-2. **company_research_analyst** - Researches nationality and founding year using `SerperDevTool`
-3. **data_compiler_and_reporter** - Compiles findings into a markdown report
+| ACT | Agent | Modele LLM | Role |
+|-----|-------|------------|------|
+| 0+1 | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
+| 2+3 | `corporate_analyst_and_saas_qualifier` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.4) | Nationalite, annee creation, qualification technique SaaS |
+| 4 | `wakastart_sales_engineer` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
+| 5 | `lead_generation_expert` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.2) | Identification des 3 decideurs + enrichissement Kaspr |
+| Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (22 colonnes) |
 
 ### Key Files
 
-- `src/company_url_analysis_automation/crew.py` - Agent and task definitions with `@agent`, `@task`, `@crew` decorators
-- `src/company_url_analysis_automation/config/agents.yaml` - Agent roles, goals, backstories
-- `src/company_url_analysis_automation/config/tasks.yaml` - Task descriptions and expected outputs
-- `src/company_url_analysis_automation/main.py` - Entry point, defines `inputs` dict with `urls` key
+- `src/company_url_analysis_automation/crew.py` - Definitions agents et taches avec decorateurs `@agent`, `@task`, `@crew`
+- `src/company_url_analysis_automation/config/agents.yaml` - Roles, goals, backstories des agents
+- `src/company_url_analysis_automation/config/tasks.yaml` - Descriptions des taches et outputs attendus
+- `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV (UTF-8 BOM, validation 22 colonnes)
+- `src/company_url_analysis_automation/tools/kaspr_tool.py` - Enrichissement contacts via API Kaspr (email, telephone)
+- `src/company_url_analysis_automation/tools/pappers_tool.py` - Donnees legales entreprises via API Pappers
+
+### Tools disponibles par agent
+
+| Agent | Tools |
+|-------|-------|
+| `economic_intelligence_analyst` | ScrapeWebsiteTool, SerperDevTool, PappersSearchTool |
+| `corporate_analyst_and_saas_qualifier` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool |
+| `wakastart_sales_engineer` | SerperDevTool, PappersSearchTool |
+| `lead_generation_expert` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool, KasprEnrichTool |
+| `data_compiler_and_reporter` | Aucun (compilation pure) |
 
 ### Input Format
 
-The crew expects an `inputs` dict with a `urls` key (see `main.py`). Modify the `urls` value to test with real URLs.
+Le crew attend un dict `inputs` avec une cle `urls` (voir `main.py`). Les fichiers d'entree :
+- `liste_test.json` - URLs pour les tests
+- `liste.json` - URLs en production
+
+## Output CSV (22 colonnes)
+
+Fichier : `output/company_report.csv` (encode UTF-8 BOM pour Excel)
+
+| Col | Nom | Description |
+|-----|-----|-------------|
+| A | Societe | Nom commercial de l'entreprise |
+| B | Site Web | URL racine (ex: https://wakastellar.com) |
+| C | Nationalite | FR, INT (Lien FR), US, UK, etc. |
+| D | Annee Creation | YYYY |
+| E | Solution SaaS | Description COURTE du produit/service (max 20 mots). Source : ACT 2+3 |
+| F | Pertinence (%) | Score 0-100 |
+| G | Strategie & Angle | Angle d'attaque commercial WakaStart (PAS la description du produit). Source : ACT 4 (Cameleon) |
+| H | Decideur 1 - Nom | Prenom NOM |
+| I | Decideur 1 - Titre | CTO, Fondateur, etc. |
+| J | Decideur 1 - Email | Email pro verifie (via Kaspr) |
+| K | Decideur 1 - Telephone | Telephone pro (via Kaspr) |
+| L | Decideur 1 - LinkedIn | URL du profil |
+| M-Q | Decideur 2 | Meme structure que Decideur 1 |
+| R-V | Decideur 3 | Meme structure que Decideur 1 |
+
+### Post-processing CSV
+
+Apres l'execution du crew, `main.py` applique automatiquement :
+1. Re-encodage UTF-8 BOM (`utf-8-sig`) pour compatibilite Excel
+2. Validation du nombre de colonnes (22 attendues)
+3. Completion des lignes trop courtes avec "Non trouve"
+4. Troncature des lignes trop longues
+
+## Scoring WakaStart (Pertinence)
+
+### Criteres de scoring eleve
+- **90-100%** : Sante (besoin HDS) + stack vieillissante
+- **80-90%** : Finance/B2B grands comptes + besoin ISO 27001/NIS2
+- **70-80%** : Levee de fonds recente + besoin acceleration dev
+- **60-70%** : Stack PHP/Python legacy + pas d'evolution depuis 5+ ans
+- **50-60%** : SaaS B2B avec besoin multi-tenant/marque blanche
+- **<50%** : Pas de composante SaaS claire ou pas d'ancrage France
+
+### Offres WakaStart (leviers de vente)
+| Offre | Description | Cible ideale |
+|-------|-------------|--------------|
+| **Developpement rapide** | 10-25x plus rapide, couts /5 a /15 | StartUp pressee |
+| **Waka Migration Pack** | Migration PHP/Python/Go -> Next.js/Nest.js | Legacy avec dette technique |
+| **Securite Secure by Design** | ISO 27001, HDS, NIS2 ready | Sante, Finance, B2B grands comptes |
+| **Multi-tenant natif** | Gestion reseaux, clients, marques blanches | SaaS B2B |
+| **Hebergement Kubernetes** | OVH, scalabilite automatique | ScaleUp en croissance |
+
+### Detection "SaaS Cache"
+Ne pas s'arreter a la vitrine. Chercher des indices :
+- Offres d'emploi "Dev Fullstack"
+- Mention de "Plateforme client", "Portail adherent"
+- Levees de fonds pour "R&D"
+
+**Exemple** : France-Care.fr - Conciergerie pour patients. Au premier abord, pas de SaaS. Mais suite a une levee de fonds, ils developpent un CRM specialise.
 
 ## Environment
 
 Requires `.env` file with:
-- `OPENAI_API_KEY` - Required for GPT-4o-mini (used by all agents)
-- `SERPER_API_KEY` - Required for web search (company_research_analyst)
+```bash
+OPENAI_API_KEY=...          # Required - GPT-4o (agents ACT 0+1 et data_compiler)
+ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5 (agents ACT 2+3, ACT 4, ACT 5)
+SERPER_API_KEY=...          # Required - Recherche web (SerperDevTool)
+PAPPERS_API_KEY=...         # Optional - Donnees legales SIREN/SIRET
+KASPR_API_KEY=...           # Optional - Enrichissement leads (email + telephone via LinkedIn)
+```
 
-## LLM Configuration
+### Kaspr API
 
-All agents use `openai/gpt-4o-mini` with temperature 0.7. To change models, edit the `llm` parameter in each agent definition in `crew.py`.
+- Endpoint : `POST https://api.developers.kaspr.io/profile/linkedin`
+- Auth : `Authorization: Bearer {KASPR_API_KEY}`
+- Headers obligatoires : `Accept: application/json`, `Content-Type: application/json`, `accept-version: v2.0`
+- Payload : `{ "id": "linkedin-slug", "name": "Prenom Nom", "dataToGet": ["phone", "workEmail", "directEmail"] }`
+- Reponse : structure nestee sous `profile` avec `professionalEmails[]`, `personalEmails[]`, `phones[]`
+- Ne fonctionne PAS avec les URLs SalesNavigator
+- Credits consommes par requete (plan Starter minimum)
 
-But du projet : Je veux créer un système d'agent pour CrewAI, voici mon projet : à partir d'une liste d'url que je vais passer en input, je veux créer un crew qui va lister nom de l’entreprise à partir de l'url, vérifier que l'url est correcte, trouver la nationalité de l'entreprise et son année de création.
+## Documentation de reference
+
+- `/docs/Projet WakaStart.pdf` - Description complete de la plateforme WakaStart
+- `/docs/Protocole Theo.pdf` - Description complete du projet
+- `/docs/kaspr.txt` - Documentation API Kaspr

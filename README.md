@@ -1,54 +1,110 @@
-# CompanyUrlAnalysisAutomation Crew
+# Protocole AUTO MASS PROJECT
 
-Welcome to the CompanyUrlAnalysisAutomation Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+Systeme multi-agents [CrewAI](https://crewai.com) pour le sourcing et l'enrichissement automatise de leads qualifies pour **WakaStart** (plateforme SaaS de WakaStellar).
+
+## Objectif
+
+Identifier, analyser et scorer des entreprises ayant une composante SaaS (averee ou cachee) pour determiner leur pertinence vis-a-vis des offres WakaStart.
+
+- **Cibles** : StartUp, ScaleUp, Editeurs Legacy avec composante SaaS
+- **Geographie** : France (priorite) + International (si lien fort France)
+- **Output** : CSV de 22 colonnes avec scoring, strategie commerciale et coordonnees des decideurs
 
 ## Installation
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
-
-First, if you haven't already, install uv:
+Python >=3.10 <3.14 requis. Le projet utilise [UV](https://docs.astral.sh/uv/) pour la gestion des dependances.
 
 ```bash
 pip install uv
-```
-
-Next, navigate to your project directory and install the dependencies:
-
-(Optional) Lock the dependencies and install them by using the CLI command:
-```bash
 crewai install
 ```
-### Customizing
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+## Configuration
 
-- Modify `src/company_url_analysis_automation/config/agents.yaml` to define your agents
-- Modify `src/company_url_analysis_automation/config/tasks.yaml` to define your tasks
-- Modify `src/company_url_analysis_automation/crew.py` to add your own logic, tools and specific args
-- Modify `src/company_url_analysis_automation/main.py` to add custom inputs for your agents and tasks
-
-## Running the Project
-
-To kickstart your crew of AI agents and begin task execution, run this from the root folder of your project:
+Creer un fichier `.env` a la racine :
 
 ```bash
-$ crewai run
+OPENAI_API_KEY=...          # Required - GPT-4o
+ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
+SERPER_API_KEY=...          # Required - Recherche web
+PAPPERS_API_KEY=...         # Optional - Donnees legales entreprises
+KASPR_API_KEY=...           # Optional - Enrichissement contacts (email + telephone)
 ```
 
-This command initializes the company_url_analysis_automation Crew, assembling the agents and assigning them tasks as defined in your configuration.
+## Utilisation
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+```bash
+# Lancer le crew (mode test avec liste_test.json)
+crewai run
 
-## Understanding Your Crew
+# Entrainement
+crewai train <n_iterations> <output_filename>
 
-The company_url_analysis_automation Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+# Replay d'une tache specifique
+crewai replay <task_id>
+```
 
-## Support
+## Architecture
 
-For support, questions, or feedback regarding the CompanyUrlAnalysisAutomation Crew or crewAI.
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
+### Pipeline multi-agents (execution sequentielle)
 
-Let's create wonders together with the power and simplicity of crewAI.
+```
+URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> ACT 5 --> Compilation --> CSV (22 cols)
+```
+
+| Etape | Agent | Modele LLM | Role |
+|-------|-------|------------|------|
+| ACT 0+1 | Expert Intelligence Economique | GPT-4o | Validation URLs, extraction nom, detection SaaS cache |
+| ACT 2+3 | Analyste Donnees & Architecte Solutions | Claude Sonnet 4.5 | Nationalite, annee creation, qualification SaaS |
+| ACT 4 | Ingenieur Commercial WakaStart | Claude Sonnet 4.5 | Scoring pertinence (0-100%), angle d'attaque commercial |
+| ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 | Identification decideurs + enrichissement Kaspr (email, telephone) |
+| Final | Data Compiler | GPT-4o | Compilation CSV finale (22 colonnes) |
+
+### Tools
+
+- **ScrapeWebsiteTool** : Scraping de contenu web
+- **SerperDevTool** : Recherche Google via API Serper
+- **PappersSearchTool** : Donnees legales entreprises (SIREN, dirigeants, CA)
+- **KasprEnrichTool** : Enrichissement contacts via LinkedIn (email pro, telephone)
+
+### Fichiers principaux
+
+```
+src/company_url_analysis_automation/
+  crew.py              # Definitions agents, taches, crew
+  main.py              # Entry point + post-processing CSV
+  config/
+    agents.yaml        # Roles et backstories des agents
+    tasks.yaml         # Descriptions des taches
+  tools/
+    __init__.py
+    kaspr_tool.py      # API Kaspr (enrichissement contacts)
+    pappers_tool.py    # API Pappers (donnees legales)
+```
+
+## Output CSV
+
+Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
+
+22 colonnes par entreprise :
+- **Entreprise** : Nom, Site Web, Nationalite, Annee Creation
+- **SaaS** : Description solution (max 20 mots)
+- **Scoring** : Pertinence (0-100%), Strategie & Angle d'attaque commercial
+- **Decideurs** (x3) : Nom, Titre, Email, Telephone, LinkedIn
+
+## Scoring WakaStart
+
+| Score | Profil type |
+|-------|-------------|
+| 90-100% | Sante (besoin HDS) + stack vieillissante |
+| 80-90% | Finance/B2B grands comptes + besoin ISO 27001/NIS2 |
+| 70-80% | Levee de fonds recente + besoin acceleration dev |
+| 60-70% | Stack PHP/Python legacy + pas d'evolution 5+ ans |
+| 50-60% | SaaS B2B avec besoin multi-tenant/marque blanche |
+| <50% | Pas de SaaS clair ou pas d'ancrage France |
+
+## Documentation
+
+- `/docs/Projet WakaStart.pdf` - Description plateforme WakaStart
+- `/docs/Protocole Theo.pdf` - Description complete du projet
+- `/docs/kaspr.txt` - Documentation API Kaspr

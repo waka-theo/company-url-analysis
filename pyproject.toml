@@ -5,7 +5,9 @@ description = "company_url_analysis_automation using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[litellm,tools]==1.7.2",
+    "anthropic>=0.76.0",
+    "crewai[google-genai,litellm,tools]==1.7.2",
+    "google-generativeai>=0.8.6",
     "python-docx>=1.2.0",
 ]
 

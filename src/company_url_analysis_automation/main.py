@@ -2,6 +2,8 @@
 import sys
 import json
 import os
+import csv
+import io
 from company_url_analysis_automation.crew import CompanyUrlAnalysisAutomationCrew
 
 # This main file is intended to be a way for your to run your
@@ -17,6 +19,52 @@ def load_urls(test_mode=True):
     with open(json_path, 'r') as f:
         return json.load(f)
 
+def post_process_csv(csv_path: str, expected_columns: int = 22):
+    """
+    Post-traitement du CSV genere par CrewAI :
+    - Re-encode en UTF-8 BOM pour compatibilite Excel
+    - Valide la structure (nombre de colonnes attendu)
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    full_path = os.path.join(project_root, csv_path)
+
+    if not os.path.exists(full_path):
+        print(f"[WARNING] Fichier CSV non trouve : {full_path}")
+        return
+
+    with open(full_path, 'r', encoding='utf-8') as f:
+        raw_content = f.read()
+
+    if not raw_content.strip():
+        print("[WARNING] CSV vide, pas de post-processing")
+        return
+
+    reader = csv.reader(io.StringIO(raw_content))
+    rows = list(reader)
+
+    if not rows:
+        print("[WARNING] CSV sans lignes, pas de post-processing")
+        return
+
+    validated_rows = []
+    for i, row in enumerate(rows):
+        if len(row) == expected_columns:
+            validated_rows.append(row)
+        elif len(row) > expected_columns:
+            print(f"[WARNING] Ligne {i + 1}: {len(row)} colonnes (attendu {expected_columns}), troncature")
+            validated_rows.append(row[:expected_columns])
+        else:
+            print(f"[WARNING] Ligne {i + 1}: {len(row)} colonnes (attendu {expected_columns}), completion")
+            row.extend(["Non trouvé"] * (expected_columns - len(row)))
+            validated_rows.append(row)
+
+    with open(full_path, 'w', encoding='utf-8-sig', newline='') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        writer.writerows(validated_rows)
+
+    print(f"[OK] CSV post-traite : {len(validated_rows) - 1} entreprise(s), {expected_columns} colonnes, encodage UTF-8 BOM")
+
+
 def run():
     """
     Run the crew.
@@ -26,6 +74,7 @@ def run():
         'urls': urls
     }
     CompanyUrlAnalysisAutomationCrew().crew().kickoff(inputs=inputs)
+    post_process_csv("output/company_report.csv")
 
 
 def train():

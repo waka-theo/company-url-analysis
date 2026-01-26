@@ -1,0 +1,81 @@
+Comment configurer l'API Kaspr
+L'API Kaspr permet aux développeurs d'intégrer en toute simplicité des données dans des fichiers externes tels que Google Sheets.
+
+L'API de Kaspr est basée sur la technologie REST et permet aux développeurs d'accéder à plus de 500 millions de profils de consommateurs, leur permettant de créer des applications avancées et riches en données. Avec l'API de Kaspr, les développeurs peuvent récupérer les profils des consommateurs directement à partir des URL de LinkedIn. Il suffit d'envoyer des requêtes au serveur de Kaspr, qui renvoie les données dans un format optimisé pour l'intégration de l'application.
+
+🚨 Remarque : Avant d'utiliser notre API, nous vous recommandons de consulter les Conditions générales d'utilisation, y compris les limites d'utilisation et la tarification. Assurez-vous que votre utilisation du service d'enrichissement de données de Kaspr soit conforme à nos conditions générales. La revente de données est strictement interdite et Kaspr prendra des mesures juridiques à l'encontre de toute entreprise qui utiliserait ou revendrait nos données.
+
+Les utilisateurs se voient facturer un montant spécifique de crédits pour chaque type d'information récupérée via les requêtes API. Ces crédits sont utilisés pour les B2B, Emails les Direct Emails et les Numéros de téléphone. Chaque requête coûte un crédit. En outre, un crédit Export Credits sera facturé pour chaque appel API réussi. Pour plus d'informations sur les crédits Kaspr, consultez l'article.
+
+🔔 Remarques :
+
+L'API ne fonctionne pas avec les URL de SalesNavigator. L'accès aux données de SalesNavigator n'est possible qu'avec l'extension Kaspr Google Chrome et les sales automation workflows. L'API de Kaspr est uniquement compatible avec les formats standard des URL des profils LinkedIn.
+
+En ce qui concerne les crédits, les utilisateurs sont facturés une quantité spécifique de crédits pour chaque type d'information récupérée via les requêtes API. Des Credits sont consommés pour les B2B Emails, Direct Emails et les Numéros de téléphone. Chaque requête réussie coûte un crédit. Cela s'applique même si plusieurs demandes concernent le même contact.
+
+ 
+
+Comment utiliser l'API de Kaspr
+Créer un compte Kaspr : Vous devez créer un compte Kaspr pour accéder à l'API et obtenir une clé API.
+
+Préparez vos données : Assurez-vous que vos données clients soient sous un format qui puisse être téléchargé vers l'API de Kaspr, comme une feuille Excel ou une Google Sheet.
+
+Intégrer l'API : Intégrez vos données à l'API de Kaspr en effectuant des requêtes API aux endpoints adaptés. Ces requêtes peuvent être effectuées en Python ou à l'aide d'un client API REST.
+
+Enrichir les données : Utilisez l'API pour enrichir les données de vos clients en envoyant une requête GET à l'endpoint de l'API avec les bons paramètres and les URL des profils LinkedIn.
+
+Récupérer les données enrichies : L'API renvoie les données enrichies au format JSON, que vous pouvez ensuite utiliser pour mettre à jour vos données clients.
+
+Kaspr propose un ensemble de fonctionnalités qui facilitent l'intégration des données des consommateurs dans les applications. Grâce à l'API de Kaspr, les développeurs peuvent rapidement et facilement créer de puissantes applications axées sur les données qui peuvent fournir des informations précieuses aux entreprises. L'équipe de Kaspr se consacre à fournir aux développeurs les outils dont ils ont besoin pour créer la meilleure application possible.
+
+ 
+
+Merci de votre intérêt pour l'API de Kaspr et nous espérons que vous trouverez tous les outils dont vous avez besoin pour tirer le meilleur parti de vos données.
+
+ 
+
+Enrichir des fichiers CSV avec l'API de Kaspr
+L'API de Kaspr vous permet d'enrichir les informations de contact enregistrées dans une feuille Excel ou CSV. Voici les étapes à suivre :
+
+Obtenir la clé API : Pour utiliser l'API de Kaspr, vous devez disposer d'une clé API, que vous pourrez obtenir en créant un compte Kaspr.
+
+Préparer la feuille Excel : Assurez-vous que votre feuille CSV contient les informations de contact que vous souhaitez enrichir, telles que le nom, l'email et le nom de l'entreprise.
+
+Télécharger les données : Vous pouvez utiliser l'API de Kaspr pour télécharger les données de votre feuille excel vers la plateforme de Kaspr. Pour cela, faites un appel API REST et envoyez une requête POST à l'endpoint API avec le fichier excel en pièce jointe.
+
+Enrichir les données : Une fois que vos données sont téléchargées, vous pouvez utiliser l'API de Kaspr pour enrichir les informations de contact dans votre feuille Excel. Pour cela, effectuez un autre appel API REST et faites une requête GET à l'extrémité de l'API avec les paramètres nécessaires.
+
+Récupérer les données enrichies : L'API renvoie les données enrichies au format JSON, que vous pouvez ensuite utiliser pour mettre à jour votre feuille Excel.
+
+Cliquez sur "Extensions" -> App Script
+
+ 
+
+function KASPR(name,id){
+const url = 'https://api.developers.kaspr.io/profile/linkedin';
+
+const payload = {
+name,
+id
+};
+
+const options = {
+method: 'POST',
+payload: JSON.stringify(payload),
+headers : {
+"Authorization" : "YOUR-API-KEY",
+"Content-Type": "application/json"
+}
+};
+
+const response = UrlFetchApp.fetch(url, options);
+if (response.getResponseCode() == 200) {
+return response.getContentText();
+}
+};
+Pour plus d'informations sur l'utilisation de l'API de Kaspr, notamment les endpoints spécifiques pour le téléchargement et l'enrichissement des données, consultez la page Kaspr API Reference : Chttps://www.kaspr.io/developers-api
+
+🚨 Remarque:
+
+Avant d'utiliser notre API, nous vous recommandons de consulter les Conditions générales d'utilisation, y compris les limites d'utilisation et le modèle de tarification. Veuillez vous assurer que votre utilisation du service d'enrichissement des données de Kaspr soit en accord avec nos Conditions générales. La revente de données est strictement interdite et Kaspr prendra des mesures juridiques à l'encontre de toute entreprise qui utiliserait ou revendrait nos données.
+
