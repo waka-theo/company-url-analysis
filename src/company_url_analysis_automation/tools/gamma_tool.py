@@ -10,6 +10,17 @@ from pydantic import BaseModel, Field
 GAMMA_TEMPLATE_ID = "g_w56csm22x0u632h"
 GAMMA_API_BASE = "https://public-api.gamma.app/v1.0"
 
+# URLs publiques des images statiques (GitHub Raw)
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/waka-theo/company-url-analysis/main/public"
+WAKASTELLAR_LOGO_URL = f"{GITHUB_RAW_BASE}/Logos-Wakstellar_Nom-full-blanc.png"
+OPPORTUNITY_ANALYSIS_IMAGE_URL = (
+    f"{GITHUB_RAW_BASE}/Gemini_Generated_Image_rzqb15rzqb15rzqb.png"
+)
+
+# APIs de resolution de logo entreprise
+CLEARBIT_LOGO_BASE = "https://logo.clearbit.com"
+GOOGLE_FAVICON_BASE = "https://www.google.com/s2/favicons?domain={domain}&sz=128"
+
 
 class GammaCreateInput(BaseModel):
     """Input schema for GammaCreateTool."""
@@ -21,6 +32,21 @@ class GammaCreateInput(BaseModel):
             "Doit contenir : nom de l'entreprise, secteur, problematiques identifiees, "
             "offres WakaStart pertinentes, et proposition de valeur personnalisee. "
             "Ce texte sera utilise par Gamma pour adapter le template de vente."
+        ),
+    )
+    company_name: str = Field(
+        ...,
+        description=(
+            "Nom commercial de l'entreprise prospect. "
+            "Utilise pour rechercher dynamiquement le logo de l'entreprise."
+        ),
+    )
+    company_domain: str = Field(
+        ...,
+        description=(
+            "Domaine du site web de l'entreprise (ex: 'wakastellar.com'). "
+            "Utilise pour recuperer le logo via Clearbit Logo API. "
+            "Ne pas inclure 'https://' ni 'www.', juste le domaine nu."
         ),
     )
 
