@@ -245,3 +245,29 @@ class TestKasprRun:
             assert payload["id"] == "jean-dupont"
             assert payload["name"] == self.VALID_NAME
             assert payload["dataToGet"] == ["phone", "workEmail", "directEmail"]
+
+    def test_generic_exception(self, kaspr_tool, mock_kaspr_api_key):
+        """Une exception generique (non-requests) est capturee proprement."""
+        with patch(self.PATCH_TARGET, side_effect=ValueError("unexpected")):
+            result = kaspr_tool._run(self.VALID_LINKEDIN, self.VALID_NAME)
+            assert "inattendue" in result.lower()
+
+
+# ===========================================================================
+# Tests _format_contact_info - cas supplementaires
+# ===========================================================================
+
+
+class TestFormatContactInfoExtra:
+    def test_starry_personal_email_fallback(self, kaspr_tool):
+        """Quand seul starryPersonalEmail est present (pas de personalEmails ni de pro)."""
+        data = {
+            "profile": {
+                "professionalEmails": [],
+                "personalEmails": [],
+                "starryPersonalEmail": "j***@perso.com",
+                "phones": [],
+            }
+        }
+        result = kaspr_tool._format_contact_info(data, "Test User", "https://linkedin.com/in/test")
+        assert "j***@perso.com" in result

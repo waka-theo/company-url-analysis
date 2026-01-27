@@ -221,3 +221,18 @@ class TestFormatSearchResults:
         assert "Corp0" in result
         assert "Corp4" in result
         assert "Corp5" not in result
+
+
+# ===========================================================================
+# Tests _run - Exception generique
+# ===========================================================================
+
+
+class TestPappersRunGenericException:
+    PATCH_TARGET = "company_url_analysis_automation.tools.pappers_tool.requests.get"
+
+    def test_generic_exception(self, pappers_tool, mock_pappers_api_key):
+        """Une exception generique (non-requests) est capturee proprement."""
+        with patch(self.PATCH_TARGET, side_effect=ValueError("unexpected")):
+            result = pappers_tool._run("WakaStellar")
+            assert "inattendue" in result.lower()

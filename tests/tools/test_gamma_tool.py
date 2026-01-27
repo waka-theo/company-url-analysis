@@ -361,3 +361,57 @@ class TestPollGenerationStatus:
         with patch(self.PATCH_GET, return_value=resp), patch(self.PATCH_SLEEP):
             result = gamma_tool._poll_generation_status("auth_id", "bad-key", poll_interval=1, max_retries=3)
             assert "Authentification" in result or "Timeout" in result
+
+    def test_non_200_non_auth_retries(self, gamma_tool, mock_response):
+        """Un status 500 pendant le polling est retry puis reussit."""
+        error_resp = mock_response(500, text="Server error")
+        ok_resp = mock_response(200, {"status": "completed", "gammaUrl": "https://gamma.app/docs/retry"})
+        with patch(self.PATCH_GET, side_effect=[error_resp, ok_resp]), patch(self.PATCH_SLEEP):
+            result = gamma_tool._poll_generation_status("retry_id", "test-key")
+            assert result == "https://gamma.app/docs/retry"
+
+    def test_network_error_during_polling(self, gamma_tool, mock_response):
+        """Une erreur reseau pendant le polling est capturee et le polling continue."""
+        ok_resp = mock_response(200, {"status": "completed", "gammaUrl": "https://gamma.app/docs/net"})
+        with (
+            patch(self.PATCH_GET, side_effect=[requests.exceptions.ConnectionError("net err"), ok_resp]),
+            patch(self.PATCH_SLEEP),
+        ):
+            result = gamma_tool._poll_generation_status("net_id", "test-key")
+            assert result == "https://gamma.app/docs/net"
+
+
+# ===========================================================================
+# Tests _run - Exceptions supplementaires
+# ===========================================================================
+
+
+class TestGammaRunExceptions:
+    PATCH_POST = "company_url_analysis_automation.tools.gamma_tool.requests.post"
+    PATCH_HEAD = "company_url_analysis_automation.tools.gamma_tool.requests.head"
+    SAMPLE_PROMPT = "Test prompt"
+    SAMPLE_NAME = "TestCorp"
+    SAMPLE_DOMAIN = "testcorp.com"
+
+    def _mock_head_success(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        return mock_resp
+
+    def test_connection_error(self, gamma_tool, mock_gamma_api_key):
+        """requests.exceptions.RequestException est capturee."""
+        with (
+            patch(self.PATCH_POST, side_effect=requests.exceptions.ConnectionError("refused")),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
+            assert "connexion" in result.lower()
+
+    def test_generic_exception(self, gamma_tool, mock_gamma_api_key):
+        """Une exception generique (non-requests) est capturee proprement."""
+        with (
+            patch(self.PATCH_POST, side_effect=ValueError("unexpected")),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
+            assert "inattendue" in result.lower()

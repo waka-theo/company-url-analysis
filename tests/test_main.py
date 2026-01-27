@@ -1,9 +1,9 @@
-"""Tests unitaires pour main.py (load_urls, normalize_url, load_existing_csv, post_process_csv)."""
+"""Tests unitaires pour main.py (load_urls, normalize_url, load_existing_csv, post_process_csv, CLI)."""
 
 import csv
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -593,3 +593,312 @@ class TestSetupLogFile:
         _setup_log_file("run")
         _setup_log_file("run")
         assert (tmp_path / "output" / "logs" / "run").is_dir()
+
+
+# ===========================================================================
+# Tests post_process_csv - cas supplementaires
+# ===========================================================================
+
+
+class TestPostProcessCsvExtra:
+    """Tests supplementaires pour couvrir les branches manquantes."""
+
+    def _make_header(self) -> list[str]:
+        return ["Societe", "Site Web"] + [f"col{i}" for i in range(2, 23)]
+
+    def _make_row(self, name: str, url: str, prefix: str = "v") -> list[str]:
+        return [name, url] + [f"{prefix}{i}" for i in range(2, 23)]
+
+    def _final_csv_path(self, tmp_path) -> str:
+        return str(tmp_path / "output" / "company_report.csv")
+
+    def test_blank_lines_stripped(self, tmp_path, monkeypatch):
+        """Les lignes vides dans le CSV brut sont ignorees."""
+        header = self._make_header()
+        row = self._make_row("Acme", "https://acme.com")
+        # Contenu avec des lignes vides intercalees
+        content = ",".join(header) + "\n\n" + ",".join(row) + "\n\n"
+
+        csv_path = tmp_path / "output" / "company_report_new.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text(content, encoding="utf-8")
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        post_process_csv(
+            new_csv_path="output/company_report_new.csv",
+            final_csv_path="output/company_report.csv",
+        )
+
+        rows = _read_csv(self._final_csv_path(tmp_path))
+        assert len(rows) == 2  # header + 1 data row
+
+    def test_only_markdown_fences_warns(self, tmp_path, monkeypatch, capsys):
+        """Un CSV contenant uniquement des code fences est vide apres nettoyage."""
+        csv_path = tmp_path / "output" / "company_report_new.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text("```csv\n```\n", encoding="utf-8")
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        post_process_csv(
+            new_csv_path="output/company_report_new.csv",
+            final_csv_path="output/company_report.csv",
+        )
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+
+    def test_header_only_warns(self, tmp_path, monkeypatch, capsys):
+        """Un CSV avec uniquement le header et aucune donnee."""
+        header = self._make_header()
+        csv_path = tmp_path / "output" / "company_report_new.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text(",".join(header) + "\n", encoding="utf-8")
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        post_process_csv(
+            new_csv_path="output/company_report_new.csv",
+            final_csv_path="output/company_report.csv",
+        )
+
+        # Ne crash pas, le CSV est cree avec juste le header
+        rows = _read_csv(self._final_csv_path(tmp_path))
+        assert len(rows) >= 1
+
+    def test_existing_row_too_short_padded(self, tmp_path, monkeypatch):
+        """Les lignes existantes avec moins de 23 colonnes sont completees lors de la validation."""
+        header = self._make_header()
+        short_existing = ["OldCo", "https://oldco.com"] + ["x"] * 10  # 12 cols
+        new_row = self._make_row("NewCo", "https://newco.com")
+
+        csv_path = str(tmp_path / "output" / "company_report.csv")
+        _write_csv(csv_path, [header, short_existing], encoding="utf-8-sig")
+        new_csv_path = str(tmp_path / "output" / "company_report_new.csv")
+        _write_csv(new_csv_path, [header, new_row])
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        post_process_csv(
+            new_csv_path="output/company_report_new.csv",
+            final_csv_path="output/company_report.csv",
+        )
+
+        rows = _read_csv(self._final_csv_path(tmp_path))
+        for row in rows[1:]:
+            assert len(row) == 23
+
+    def test_existing_row_too_long_truncated(self, tmp_path, monkeypatch):
+        """Les lignes existantes avec plus de 23 colonnes sont tronquees."""
+        header = self._make_header()
+        long_existing = ["OldCo", "https://oldco.com"] + ["x"] * 30  # 32 cols
+        new_row = self._make_row("NewCo", "https://newco.com")
+
+        csv_path = str(tmp_path / "output" / "company_report.csv")
+        _write_csv(csv_path, [header, long_existing], encoding="utf-8-sig")
+        new_csv_path = str(tmp_path / "output" / "company_report_new.csv")
+        _write_csv(new_csv_path, [header, new_row])
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        post_process_csv(
+            new_csv_path="output/company_report_new.csv",
+            final_csv_path="output/company_report.csv",
+        )
+
+        rows = _read_csv(self._final_csv_path(tmp_path))
+        for row in rows[1:]:
+            assert len(row) == 23
+
+    def test_oserror_on_temp_delete(self, tmp_path, monkeypatch, capsys):
+        """Un OSError lors de la suppression du fichier temporaire affiche un warning."""
+        header = self._make_header()
+        row = self._make_row("Acme", "https://acme.com")
+        new_csv_path = str(tmp_path / "output" / "company_report_new.csv")
+        _write_csv(new_csv_path, [header, row])
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        with patch("os.remove", side_effect=OSError("permission denied")):
+            post_process_csv(
+                new_csv_path="output/company_report_new.csv",
+                final_csv_path="output/company_report.csv",
+            )
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "temporaire" in captured.out
+
+
+# ===========================================================================
+# Tests des fonctions CLI (run, train, replay, test)
+# ===========================================================================
+
+
+class TestRunFunction:
+    """Tests pour la fonction run()."""
+
+    def test_run_calls_crew_and_postprocess(self, tmp_path, monkeypatch):
+        """run() charge les URLs, lance le crew, et post-process le CSV."""
+        from company_url_analysis_automation.main import run
+
+        mock_crew_obj = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+
+        urls = ["https://example.com"]
+        test_file = tmp_path / "liste_test.json"
+        test_file.write_text(json.dumps(urls), encoding="utf-8")
+
+        # Creer le log dir
+        log_dir = tmp_path / "output" / "logs" / "run"
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        with (
+            patch(
+                "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+                return_value=mock_crew_instance,
+            ),
+            patch("company_url_analysis_automation.main.post_process_csv") as mock_pp,
+        ):
+            run()
+
+        mock_crew_obj.kickoff.assert_called_once()
+        mock_pp.assert_called_once()
+
+
+class TestTrainFunction:
+    """Tests pour la fonction train()."""
+
+    def test_train_calls_crew(self, tmp_path, monkeypatch):
+        from company_url_analysis_automation.main import train
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        monkeypatch.setattr("sys.argv", ["main.py", "2", "output.json"])
+
+        urls = ["https://example.com"]
+        test_file = tmp_path / "liste_test.json"
+        test_file.write_text(json.dumps(urls), encoding="utf-8")
+
+        mock_crew_obj = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with patch(
+            "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+            return_value=mock_crew_instance,
+        ):
+            train()
+
+        mock_crew_obj.train.assert_called_once()
+
+    def test_train_wraps_exception(self, tmp_path, monkeypatch):
+        from company_url_analysis_automation.main import train
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        monkeypatch.setattr("sys.argv", ["main.py", "2", "output.json"])
+
+        urls = ["https://example.com"]
+        test_file = tmp_path / "liste_test.json"
+        test_file.write_text(json.dumps(urls), encoding="utf-8")
+
+        mock_crew_obj = MagicMock()
+        mock_crew_obj.train.side_effect = RuntimeError("train failed")
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with (
+            patch(
+                "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+                return_value=mock_crew_instance,
+            ),
+            pytest.raises(Exception, match="training the crew"),
+        ):
+            train()
+
+
+class TestReplayFunction:
+    """Tests pour la fonction replay()."""
+
+    def test_replay_calls_crew(self, monkeypatch):
+        from company_url_analysis_automation.main import replay
+
+        monkeypatch.setattr("sys.argv", ["main.py", "task123"])
+
+        mock_crew_obj = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with patch(
+            "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+            return_value=mock_crew_instance,
+        ):
+            replay()
+
+        mock_crew_obj.replay.assert_called_once_with(task_id="task123")
+
+    def test_replay_wraps_exception(self, monkeypatch):
+        from company_url_analysis_automation.main import replay
+
+        monkeypatch.setattr("sys.argv", ["main.py", "task123"])
+
+        mock_crew_obj = MagicMock()
+        mock_crew_obj.replay.side_effect = RuntimeError("replay failed")
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with (
+            patch(
+                "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+                return_value=mock_crew_instance,
+            ),
+            pytest.raises(Exception, match="replaying the crew"),
+        ):
+            replay()
+
+
+class TestTestFunction:
+    """Tests pour la fonction test()."""
+
+    def test_test_calls_crew(self, tmp_path, monkeypatch):
+        from company_url_analysis_automation.main import test
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        monkeypatch.setattr("sys.argv", ["main.py", "1", "gpt-4o"])
+
+        urls = ["https://example.com"]
+        test_file = tmp_path / "liste_test.json"
+        test_file.write_text(json.dumps(urls), encoding="utf-8")
+
+        mock_crew_obj = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with patch(
+            "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+            return_value=mock_crew_instance,
+        ):
+            test()
+
+        mock_crew_obj.test.assert_called_once()
+
+    def test_test_wraps_exception(self, tmp_path, monkeypatch):
+        from company_url_analysis_automation.main import test
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        monkeypatch.setattr("sys.argv", ["main.py", "1", "gpt-4o"])
+
+        urls = ["https://example.com"]
+        test_file = tmp_path / "liste_test.json"
+        test_file.write_text(json.dumps(urls), encoding="utf-8")
+
+        mock_crew_obj = MagicMock()
+        mock_crew_obj.test.side_effect = RuntimeError("test failed")
+        mock_crew_instance = MagicMock()
+        mock_crew_instance.crew.return_value = mock_crew_obj
+
+        with (
+            patch(
+                "company_url_analysis_automation.main.CompanyUrlAnalysisAutomationCrew",
+                return_value=mock_crew_instance,
+            ),
+            pytest.raises(Exception, match="testing the crew"),
+        ):
+            test()

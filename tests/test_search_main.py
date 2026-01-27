@@ -2,6 +2,7 @@
 
 import json
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -402,3 +403,69 @@ class TestPostProcessSearchResults:
             final_output_path=str(tmp_path / "output" / "result.json"),
         )
         assert result == urls
+
+    def test_empty_after_markdown_cleanup(self, tmp_path, monkeypatch, capsys):
+        """Un fichier brut ne contenant que des code fences retourne une liste vide."""
+        self._write_raw(tmp_path, "```json\n```")
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        result = post_process_search_results(
+            final_output_path=str(tmp_path / "output" / "result.json"),
+        )
+        assert result == []
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+
+    def test_oserror_on_raw_delete(self, tmp_path, monkeypatch):
+        """Un OSError lors de la suppression du fichier brut ne crash pas."""
+        urls = ["https://example.com"]
+        self._write_raw(tmp_path, json.dumps(urls))
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        with patch("os.remove", side_effect=OSError("permission denied")):
+            result = post_process_search_results(
+                final_output_path=str(tmp_path / "output" / "result.json"),
+            )
+        assert result == ["https://example.com"]
+
+
+# ===========================================================================
+# Tests de la fonction search()
+# ===========================================================================
+
+
+class TestSearchFunction:
+    """Tests pour la fonction search() du CLI."""
+
+    def test_search_calls_crew_and_postprocess(self, tmp_path, monkeypatch):
+        """search() charge les criteres, lance le crew, et post-process les resultats."""
+        from company_url_analysis_automation.main import search
+
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        monkeypatch.setattr("sys.argv", ["main.py", "search"])
+
+        # Creer le fichier de criteres
+        criteria = {"keywords": ["SaaS"], "max_results": 10}
+        criteria_file = tmp_path / "search_criteria.json"
+        criteria_file.write_text(json.dumps(criteria), encoding="utf-8")
+
+        # Creer le log dir
+        log_dir = tmp_path / "output" / "logs" / "search"
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        mock_crew_obj = MagicMock()
+        mock_search_instance = MagicMock()
+        mock_search_instance.crew.return_value = mock_crew_obj
+
+        with (
+            patch(
+                "company_url_analysis_automation.main.SearchCrew",
+                return_value=mock_search_instance,
+            ),
+            patch("company_url_analysis_automation.main.post_process_search_results") as mock_pp,
+        ):
+            search()
+
+        mock_crew_obj.kickoff.assert_called_once()
+        mock_pp.assert_called_once()
