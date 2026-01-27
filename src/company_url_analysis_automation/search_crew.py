@@ -11,6 +11,8 @@ from .tools import PappersSearchTool
 class SearchCrew:
     """SearchCrew - Decouvre des URLs d'entreprises SaaS a partir de criteres de recherche."""
 
+    agents_config = "config/search_agents.yaml"
+    tasks_config = "config/search_tasks.yaml"
     log_file: str | None = None
 
     @agent

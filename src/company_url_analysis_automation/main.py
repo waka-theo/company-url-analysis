@@ -407,6 +407,7 @@ def search():
     inputs: dict[str, str | int] = {
         "search_criteria": search_criteria_text,
         "max_results": int(max_results) if max_results else 50,
+        "sector": str(criteria.get("sector", "technologie")),
     }
 
     print("[INFO] Lancement recherche avec criteres:")
