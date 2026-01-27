@@ -9,6 +9,8 @@ from .tools import GammaCreateTool, KasprEnrichTool, PappersSearchTool
 class CompanyUrlAnalysisAutomationCrew:
     """CompanyUrlAnalysisAutomation crew"""
 
+    log_file: str | None = None
+
     @agent
     def economic_intelligence_analyst(self) -> Agent:
         """ACT 0 + ACT 1 : Expert en Intelligence Économique & Tech Scouting"""
@@ -180,4 +182,5 @@ class CompanyUrlAnalysisAutomationCrew:
             process=Process.sequential,
             verbose=True,
             chat_llm=LLM(model="openai/gpt-4o-mini"),
+            output_log_file=self.log_file,
         )

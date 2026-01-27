@@ -9,6 +9,7 @@ import pytest
 
 import company_url_analysis_automation.main as main_module
 from company_url_analysis_automation.main import (
+    _setup_log_file,
     load_existing_csv,
     load_urls,
     normalize_url,
@@ -535,3 +536,60 @@ class TestPostProcessCsv:
         assert "2 entreprise(s) total" in captured.out
         assert "1 nouvelle(s)" in captured.out
         assert "1 mise(s) a jour" in captured.out
+
+
+# ===========================================================================
+# Tests _setup_log_file
+# ===========================================================================
+
+
+class TestSetupLogFile:
+    """Tests pour la fonction _setup_log_file."""
+
+    def test_creates_run_log_directory(self, tmp_path, monkeypatch):
+        """Cree le dossier output/logs/run/."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        _setup_log_file("run")
+        assert (tmp_path / "output" / "logs" / "run").is_dir()
+
+    def test_creates_search_log_directory(self, tmp_path, monkeypatch):
+        """Cree le dossier output/logs/search/."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        _setup_log_file("search")
+        assert (tmp_path / "output" / "logs" / "search").is_dir()
+
+    def test_returns_json_path(self, tmp_path, monkeypatch):
+        """Retourne un chemin .json."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        result = _setup_log_file("run")
+        assert result.endswith(".json")
+
+    def test_path_contains_workflow_name(self, tmp_path, monkeypatch):
+        """Le nom du fichier contient le nom du workflow."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        result = _setup_log_file("run")
+        assert "run_" in os.path.basename(result)
+
+    def test_path_contains_timestamp(self, tmp_path, monkeypatch):
+        """Le nom du fichier contient un timestamp YYYYMMDD_HHMMSS."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        result = _setup_log_file("run")
+        basename = os.path.basename(result)
+        # Format: run_YYYYMMDD_HHMMSS.json
+        parts = basename.replace(".json", "").split("_", 1)
+        assert len(parts) == 2
+        assert len(parts[1]) == 15  # YYYYMMDD_HHMMSS
+
+    def test_path_under_correct_subdirectory(self, tmp_path, monkeypatch):
+        """Le fichier est dans output/logs/<workflow>/."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        result = _setup_log_file("search")
+        expected_dir = str(tmp_path / "output" / "logs" / "search")
+        assert os.path.dirname(result) == expected_dir
+
+    def test_idempotent_directory_creation(self, tmp_path, monkeypatch):
+        """Creer le dossier deux fois ne leve pas d'erreur."""
+        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
+        _setup_log_file("run")
+        _setup_log_file("run")
+        assert (tmp_path / "output" / "logs" / "run").is_dir()

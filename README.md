@@ -35,8 +35,12 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 ## Utilisation
 
 ```bash
-# Lancer le crew (mode test avec liste_test.json)
+# Lancer le crew d'analyse (mode test avec liste_test.json)
 crewai run
+
+# Lancer le crew de recherche d'URLs
+python main.py search
+python main.py search --criteria path/to/file.json --output output/urls.json
 
 # Entrainement
 crewai train <n_iterations> <output_filename>
@@ -47,7 +51,9 @@ crewai replay <task_id>
 
 ## Architecture
 
-### Pipeline multi-agents (execution sequentielle)
+Le projet comporte **2 crews** independants.
+
+### Crew 1 : Analyse d'entreprises (6 taches sequentielles)
 
 ```
 URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilation --> CSV (23 cols)
@@ -58,9 +64,26 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilatio
 | ACT 0+1 | Expert Intelligence Economique | GPT-4o (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
 | ACT 2+3 | Analyste Donnees & Architecte Solutions | Claude Sonnet 4.5 (temp 0.4) | Nationalite, annee creation, qualification SaaS |
 | ACT 4 | Ingenieur Commercial WakaStart | Claude Sonnet 4.5 (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
-| Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page web Gamma personnalisee (CLIENT-FACING) |
+| Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page web Gamma avec logos dynamiques |
 | ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 (temp 0.2) | Identification decideurs + enrichissement Kaspr (email, telephone) |
 | Final | Data Compiler | GPT-4o (temp 0.1) | Compilation CSV finale (23 colonnes) |
+
+### Crew 2 : Recherche d'URLs (`SearchCrew`)
+
+```
+Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON (URLs)
+```
+
+| Phase | Tache | Role |
+|-------|-------|------|
+| 1 | Decouverte web | Recherche via Serper selon criteres |
+| 2 | Validation legale | Verification via Pappers |
+| 3 | Scan SaaS | Verification SaaS approfondie + compilation JSON |
+
+- **Agent** : Expert en Veille Strategique & Detection SaaS (`saas_discovery_scout`)
+- **Modele** : Claude Sonnet 4.5 (temp 0.3)
+- **Input** : `search_criteria.json`
+- **Output** : `output/search_results_raw.json`
 
 ### Tools
 
@@ -68,29 +91,30 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilatio
 - **SerperDevTool** : Recherche Google via API Serper
 - **PappersSearchTool** : Donnees legales entreprises (SIREN, dirigeants, CA)
 - **KasprEnrichTool** : Enrichissement contacts via LinkedIn (email pro, telephone)
-- **GammaCreateTool** : Creation pages web commerciales via API Gamma (template-based)
+- **GammaCreateTool** : Creation pages web via API Gamma (template + logos dynamiques Clearbit/Google)
 
 ### Fichiers principaux
 
 ```
 src/company_url_analysis_automation/
-  crew.py              # Definitions agents, taches, crew
-  main.py              # Entry point + post-processing CSV
+  crew.py              # Definitions agents, taches, crew d'analyse
+  search_crew.py       # Definitions du crew de recherche (SearchCrew)
+  main.py              # Entry point + post-processing CSV et JSON
   config/
-    agents.yaml        # Roles et backstories des agents
-    tasks.yaml         # Descriptions des taches
+    agents.yaml        # Roles et backstories des 7 agents
+    tasks.yaml         # Descriptions des 9 taches
   tools/
     __init__.py
     kaspr_tool.py      # API Kaspr (enrichissement contacts)
     pappers_tool.py    # API Pappers (donnees legales)
-    gamma_tool.py      # API Gamma (creation pages web)
+    gamma_tool.py      # API Gamma (creation pages web + logos)
 tests/
   conftest.py          # Fixtures partagees et mocks API
-  test_main.py         # Tests load_urls + post_process_csv
+  test_main.py         # Tests load_urls, normalize_url, post_process_csv
   tools/
     test_kaspr_tool.py   # Tests KasprEnrichTool
     test_pappers_tool.py # Tests PappersSearchTool
-    test_gamma_tool.py   # Tests GammaCreateTool
+    test_gamma_tool.py   # Tests GammaCreateTool (logos, prompt enrichi, polling)
 ```
 
 ## Output CSV
@@ -117,7 +141,7 @@ Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 
 ## Tests
 
-94 tests unitaires avec pytest couvrant les tools (Kaspr, Pappers, Gamma), le post-processing CSV et le chargement des URLs.
+Tests unitaires avec pytest couvrant les tools (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV, la normalisation d'URLs et le chargement des donnees.
 
 ```bash
 pytest       # Lancer tous les tests

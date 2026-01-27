@@ -38,7 +38,9 @@ pytest
 
 Commandes alternatives via `main.py` :
 ```bash
-python main.py run           # Lance le crew
+python main.py run           # Lance le crew d'analyse
+python main.py search        # Lance le crew de recherche d'URLs
+python main.py search --criteria path/to/file.json --output output/urls.json
 python main.py train N FILE  # Entrainement (N iterations, FILE output)
 python main.py replay TASKID # Replay tache specifique
 python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
@@ -46,26 +48,43 @@ python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
 
 ## Architecture
 
-### Workflow d'execution (6 taches sequentielles)
+Le projet comporte **2 crews** independants :
+
+### Crew 1 : Analyse d'entreprises (6 taches sequentielles)
 
 | ACT | Agent | Modele LLM | Role |
 |-----|-------|------------|------|
 | 0+1 | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
 | 2+3 | `corporate_analyst_and_saas_qualifier` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.4) | Nationalite, annee creation, qualification technique SaaS |
 | 4 | `wakastart_sales_engineer` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
-| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page web Gamma a partir de l'argumentaire ACT 4 |
+| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page web Gamma avec logos dynamiques |
 | 5 | `lead_generation_expert` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.2) | Identification des 3 decideurs + enrichissement Kaspr |
 | Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
+### Crew 2 : Recherche d'URLs (`SearchCrew`)
+
+| Phase | Tache | Role |
+|-------|-------|------|
+| 1 | `search_web_discovery` | Decouverte web via Serper |
+| 2 | `search_pappers_validation` | Validation legale via Pappers |
+| 3 | `search_saas_deep_scan` | Verification SaaS approfondie + compilation JSON |
+
+- **Agent** : `saas_discovery_scout` - Expert en Veille Strategique & Detection SaaS
+- **Modele** : `anthropic/claude-sonnet-4-5-20250929` (temp 0.3), max 40 iterations
+- **Tools** : SerperDevTool, ScrapeWebsiteTool, PappersSearchTool
+- **Output** : `output/search_results_raw.json`
+- **Input** : `search_criteria.json` (criteres de recherche)
+
 ### Key Files
 
-- `src/company_url_analysis_automation/crew.py` - Definitions agents et taches avec decorateurs `@agent`, `@task`, `@crew`
-- `src/company_url_analysis_automation/config/agents.yaml` - Roles, goals, backstories des agents
-- `src/company_url_analysis_automation/config/tasks.yaml` - Descriptions des taches et outputs attendus
-- `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV (UTF-8 BOM, validation 23 colonnes)
+- `src/company_url_analysis_automation/crew.py` - Definitions agents et taches du crew d'analyse (`@agent`, `@task`, `@crew`)
+- `src/company_url_analysis_automation/search_crew.py` - Definitions du crew de recherche (`SearchCrew`)
+- `src/company_url_analysis_automation/config/agents.yaml` - Roles, goals, backstories des 7 agents
+- `src/company_url_analysis_automation/config/tasks.yaml` - Descriptions des 9 taches et outputs attendus
+- `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV et JSON
 - `src/company_url_analysis_automation/tools/kaspr_tool.py` - Enrichissement contacts via API Kaspr (email, telephone)
 - `src/company_url_analysis_automation/tools/pappers_tool.py` - Donnees legales entreprises via API Pappers
-- `src/company_url_analysis_automation/tools/gamma_tool.py` - Creation pages web via API Gamma
+- `src/company_url_analysis_automation/tools/gamma_tool.py` - Creation pages web via API Gamma + resolution logos (Clearbit/Google)
 
 ### Tools disponibles par agent
 
@@ -77,12 +96,16 @@ python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
 | `gamma_webpage_creator` | GammaCreateTool |
 | `lead_generation_expert` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool, KasprEnrichTool |
 | `data_compiler_and_reporter` | Aucun (compilation pure) |
+| `saas_discovery_scout` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool |
 
 ### Input Format
 
-Le crew attend un dict `inputs` avec une cle `urls` (voir `main.py`). Les fichiers d'entree :
+**Crew d'analyse** : dict `inputs` avec une cle `urls` (voir `main.py`). Fichiers d'entree :
 - `liste_test.json` - URLs pour les tests
 - `liste.json` - URLs en production
+
+**Crew de recherche** : dict `inputs` avec une cle `search_criteria`. Fichier d'entree :
+- `search_criteria.json` - Criteres de recherche (secteur, geographie, taille, etc.)
 
 ## Output CSV (23 colonnes)
 
@@ -168,12 +191,17 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 - Ne fonctionne PAS avec les URLs SalesNavigator
 - Credits consommes par requete (plan Starter minimum)
 
-### Gamma API (template-based)
+### Gamma API (template-based + logos dynamiques)
 
 - Endpoint : `POST https://public-api.gamma.app/v1.0/generations/from-template`
 - Auth : `X-API-KEY: {GAMMA_API_KEY}`
 - Template ID : `g_w56csm22x0u632h`
-- Payload : `{ "gammaId": "g_w56csm22x0u632h", "prompt": "contenu de personnalisation", "sharingOptions": { "workspaceAccess": "view", "externalAccess": "view" } }`
+- Inputs obligatoires : `prompt` (texte de personnalisation), `company_name` (nom commercial), `company_domain` (domaine nu sans https/www)
+- **Resolution logos** : Le tool resout dynamiquement le logo de l'entreprise via Clearbit (`https://logo.clearbit.com/{domain}`) avec fallback Google Favicon
+- **Prompt enrichi** : Injection automatique de 3 images dans la premiere page :
+  1. Logo entreprise (via Clearbit/Google)
+  2. Image "Opportunity Analysis" (hebergee GitHub)
+  3. Logo WakaStellar (hebergee GitHub)
 - Workflow : POST → `generationId` → polling GET `/generations/{id}` toutes les 3s (60 tentatives max) → `gammaUrl`
 - Reponse finale : URL `https://gamma.app/docs/{generationId}`
 - Partage : `workspaceAccess: "view"`, `externalAccess: "view"` (pages accessibles aux clients)
@@ -181,15 +209,15 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 
 ## Tests
 
-94 tests unitaires avec pytest :
+Tests unitaires avec pytest :
 
 | Fichier | Couverture |
 |---------|------------|
 | `tests/conftest.py` | Fixtures partagees, mocks API (cles, reponses, instances tools) |
-| `tests/test_main.py` | `load_urls()`, `post_process_csv()` (14 tests) |
+| `tests/test_main.py` | `load_urls()`, `normalize_url()`, `load_existing_csv()`, `post_process_csv()` (41 tests) |
 | `tests/tools/test_kaspr_tool.py` | Init, extraction LinkedIn ID, formatage contacts, appels API, erreurs HTTP |
 | `tests/tools/test_pappers_tool.py` | Init, recherche par nom/SIREN, formatage details, erreurs HTTP |
-| `tests/tools/test_gamma_tool.py` | Init, creation template, polling workflow, erreurs, extraction URL |
+| `tests/tools/test_gamma_tool.py` | Init, inputs, resolution logos (Clearbit/Google), prompt enrichi, appels API, polling, erreurs (39 tests) |
 
 ```bash
 pytest                    # Lancer tous les tests

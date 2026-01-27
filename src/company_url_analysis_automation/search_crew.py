@@ -11,6 +11,8 @@ from .tools import PappersSearchTool
 class SearchCrew:
     """SearchCrew - Decouvre des URLs d'entreprises SaaS a partir de criteres de recherche."""
 
+    log_file: str | None = None
+
     @agent
     def saas_discovery_scout(self) -> Agent:
         """Agent de decouverte et validation d'entreprises SaaS"""
@@ -64,4 +66,5 @@ class SearchCrew:
             process=Process.sequential,
             verbose=True,
             chat_llm=LLM(model="openai/gpt-4o-mini"),
+            output_log_file=self.log_file,
         )
