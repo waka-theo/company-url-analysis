@@ -8,7 +8,7 @@ Identifier, analyser et scorer des entreprises ayant une composante SaaS (averee
 
 - **Cibles** : StartUp, ScaleUp, Editeurs Legacy avec composante SaaS
 - **Geographie** : France (priorite) + International (si lien fort France)
-- **Output** : CSV de 22 colonnes avec scoring, strategie commerciale et coordonnees des decideurs
+- **Output** : CSV de 23 colonnes avec scoring, strategie commerciale, page Gamma et coordonnees des decideurs
 
 ## Installation
 
@@ -29,6 +29,7 @@ ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
 SERPER_API_KEY=...          # Required - Recherche web
 PAPPERS_API_KEY=...         # Optional - Donnees legales entreprises
 KASPR_API_KEY=...           # Optional - Enrichissement contacts (email + telephone)
+GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 ```
 
 ## Utilisation
@@ -49,16 +50,17 @@ crewai replay <task_id>
 ### Pipeline multi-agents (execution sequentielle)
 
 ```
-URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> ACT 5 --> Compilation --> CSV (22 cols)
+URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilation --> CSV (23 cols)
 ```
 
 | Etape | Agent | Modele LLM | Role |
 |-------|-------|------------|------|
-| ACT 0+1 | Expert Intelligence Economique | GPT-4o | Validation URLs, extraction nom, detection SaaS cache |
-| ACT 2+3 | Analyste Donnees & Architecte Solutions | Claude Sonnet 4.5 | Nationalite, annee creation, qualification SaaS |
-| ACT 4 | Ingenieur Commercial WakaStart | Claude Sonnet 4.5 | Scoring pertinence (0-100%), angle d'attaque commercial |
-| ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 | Identification decideurs + enrichissement Kaspr (email, telephone) |
-| Final | Data Compiler | GPT-4o | Compilation CSV finale (22 colonnes) |
+| ACT 0+1 | Expert Intelligence Economique | GPT-4o (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
+| ACT 2+3 | Analyste Donnees & Architecte Solutions | Claude Sonnet 4.5 (temp 0.4) | Nationalite, annee creation, qualification SaaS |
+| ACT 4 | Ingenieur Commercial WakaStart | Claude Sonnet 4.5 (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
+| Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page web Gamma personnalisee (CLIENT-FACING) |
+| ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 (temp 0.2) | Identification decideurs + enrichissement Kaspr (email, telephone) |
+| Final | Data Compiler | GPT-4o (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
 ### Tools
 
@@ -66,6 +68,7 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> ACT 5 --> Compilation --> CSV 
 - **SerperDevTool** : Recherche Google via API Serper
 - **PappersSearchTool** : Donnees legales entreprises (SIREN, dirigeants, CA)
 - **KasprEnrichTool** : Enrichissement contacts via LinkedIn (email pro, telephone)
+- **GammaCreateTool** : Creation pages web commerciales via API Gamma (template-based)
 
 ### Fichiers principaux
 
@@ -80,17 +83,26 @@ src/company_url_analysis_automation/
     __init__.py
     kaspr_tool.py      # API Kaspr (enrichissement contacts)
     pappers_tool.py    # API Pappers (donnees legales)
+    gamma_tool.py      # API Gamma (creation pages web)
+tests/
+  conftest.py          # Fixtures partagees et mocks API
+  test_main.py         # Tests load_urls + post_process_csv
+  tools/
+    test_kaspr_tool.py   # Tests KasprEnrichTool
+    test_pappers_tool.py # Tests PappersSearchTool
+    test_gamma_tool.py   # Tests GammaCreateTool
 ```
 
 ## Output CSV
 
 Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 
-22 colonnes par entreprise :
+23 colonnes par entreprise :
 - **Entreprise** : Nom, Site Web, Nationalite, Annee Creation
 - **SaaS** : Description solution (max 20 mots)
 - **Scoring** : Pertinence (0-100%), Strategie & Angle d'attaque commercial
 - **Decideurs** (x3) : Nom, Titre, Email, Telephone, LinkedIn
+- **Page Gamma** : URL de la page web Gamma generee
 
 ## Scoring WakaStart
 
@@ -103,8 +115,19 @@ Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 | 50-60% | SaaS B2B avec besoin multi-tenant/marque blanche |
 | <50% | Pas de SaaS clair ou pas d'ancrage France |
 
+## Tests
+
+94 tests unitaires avec pytest couvrant les tools (Kaspr, Pappers, Gamma), le post-processing CSV et le chargement des URLs.
+
+```bash
+pytest       # Lancer tous les tests
+pytest -v    # Mode verbose
+```
+
 ## Documentation
 
 - `/docs/Projet WakaStart.pdf` - Description plateforme WakaStart
 - `/docs/Protocole Theo.pdf` - Description complete du projet
 - `/docs/kaspr.txt` - Documentation API Kaspr
+- `/docs/gamma_api.txt` - Documentation API Gamma
+- `/docs/pappers_api_v2.yaml` - Specification OpenAPI Pappers v2

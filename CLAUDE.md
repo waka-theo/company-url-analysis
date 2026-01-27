@@ -108,11 +108,16 @@ Fichier : `output/company_report.csv` (encode UTF-8 BOM pour Excel)
 
 ### Post-processing CSV
 
-Apres l'execution du crew, `main.py` applique automatiquement :
-1. Re-encodage UTF-8 BOM (`utf-8-sig`) pour compatibilite Excel
-2. Validation du nombre de colonnes (23 attendues)
-3. Completion des lignes trop courtes avec "Non trouve"
-4. Troncature des lignes trop longues
+Apres l'execution du crew, `main.py` applique automatiquement un merge intelligent :
+
+1. **Chargement** : `load_existing_csv()` charge le CSV existant (`output/company_report.csv`)
+2. **Nettoyage** : Suppression des artefacts markdown (code fences, lignes vides) du CSV temporaire (`output/company_report_new.csv`)
+3. **Deduplication** : `normalize_url()` normalise les URLs (suppression protocole, www, trailing slash) pour generer des cles uniques
+4. **Merge par URL** : Mise a jour si l'URL existe deja, ajout sinon
+5. **Backup automatique** : Sauvegarde avec timestamp avant ecrasement (`company_report_backup_YYYYMMDD_HHMMSS.csv`)
+6. **Validation colonnes** : Completion avec "Non trouve" si <23 colonnes, troncature si >23
+7. **Encodage** : Re-encodage UTF-8 BOM (`utf-8-sig`) pour compatibilite Excel
+8. **Nettoyage** : Suppression du fichier temporaire `company_report_new.csv`
 
 ## Scoring WakaStart (Pertinence)
 
@@ -163,14 +168,34 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 - Ne fonctionne PAS avec les URLs SalesNavigator
 - Credits consommes par requete (plan Starter minimum)
 
-### Gamma API
+### Gamma API (template-based)
 
-- Endpoint : `POST https://public-api.gamma.app/v1.0/generations`
+- Endpoint : `POST https://public-api.gamma.app/v1.0/generations/from-template`
 - Auth : `X-API-KEY: {GAMMA_API_KEY}`
-- Payload : `{ "inputText": "contenu", "textMode": "preserve", "format": "webpage", ... }`
-- Reponse : `{ "generationId": "xxx" }` → URL : `https://gamma.app/docs/{generationId}`
-- Partage : `workspaceAccess: "view"`, `externalAccess: "noAccess"` (interne uniquement)
-- Cards : separees par `\n---\n` dans inputText avec `cardSplit: "inputTextBreaks"`
+- Template ID : `g_w56csm22x0u632h`
+- Payload : `{ "gammaId": "g_w56csm22x0u632h", "prompt": "contenu de personnalisation", "sharingOptions": { "workspaceAccess": "view", "externalAccess": "view" } }`
+- Workflow : POST → `generationId` → polling GET `/generations/{id}` toutes les 3s (60 tentatives max) → `gammaUrl`
+- Reponse finale : URL `https://gamma.app/docs/{generationId}`
+- Partage : `workspaceAccess: "view"`, `externalAccess: "view"` (pages accessibles aux clients)
+- Timeout : 120s creation, 180s polling total
+
+## Tests
+
+94 tests unitaires avec pytest :
+
+| Fichier | Couverture |
+|---------|------------|
+| `tests/conftest.py` | Fixtures partagees, mocks API (cles, reponses, instances tools) |
+| `tests/test_main.py` | `load_urls()`, `post_process_csv()` (14 tests) |
+| `tests/tools/test_kaspr_tool.py` | Init, extraction LinkedIn ID, formatage contacts, appels API, erreurs HTTP |
+| `tests/tools/test_pappers_tool.py` | Init, recherche par nom/SIREN, formatage details, erreurs HTTP |
+| `tests/tools/test_gamma_tool.py` | Init, creation template, polling workflow, erreurs, extraction URL |
+
+```bash
+pytest                    # Lancer tous les tests
+pytest tests/test_main.py # Tester uniquement main.py
+pytest -v                 # Mode verbose
+```
 
 ## Documentation de reference
 
@@ -178,3 +203,5 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 - `/docs/Protocole Theo.pdf` - Description complete du projet
 - `/docs/kaspr.txt` - Documentation API Kaspr
 - `/docs/gamma_api.txt` - Documentation API Gamma
+- `/docs/pappers_api_v2.yaml` - Specification OpenAPI Pappers v2
+- `/docs/agent-commercial.md` - Guide agent commercial
