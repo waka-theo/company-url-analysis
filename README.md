@@ -109,8 +109,10 @@ src/company_url_analysis_automation/
     pappers_tool.py    # API Pappers (donnees legales)
     gamma_tool.py      # API Gamma (creation pages web + logos)
 tests/
-  conftest.py          # Fixtures partagees et mocks API
-  test_main.py         # Tests load_urls, normalize_url, post_process_csv
+  conftest.py            # Fixtures partagees et mocks API
+  test_main.py           # Tests crew d'analyse (load_urls, post_process_csv)
+  test_search_crew.py    # Tests SearchCrew (agent, taches, config)
+  test_search_main.py    # Tests crew de recherche (criteres, post-processing, commande)
   tools/
     test_kaspr_tool.py   # Tests KasprEnrichTool
     test_pappers_tool.py # Tests PappersSearchTool
@@ -141,7 +143,7 @@ Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 
 ## Tests
 
-Tests unitaires avec pytest couvrant les tools (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV, la normalisation d'URLs et le chargement des donnees.
+179 tests unitaires avec pytest couvrant les 2 crews (analyse + recherche), les 3 tools custom (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV/JSON et la normalisation d'URLs.
 
 ```bash
 pytest       # Lancer tous les tests

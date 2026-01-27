@@ -105,7 +105,18 @@ Le projet comporte **2 crews** independants :
 - `liste.json` - URLs en production
 
 **Crew de recherche** : dict `inputs` avec une cle `search_criteria`. Fichier d'entree :
-- `search_criteria.json` - Criteres de recherche (secteur, geographie, taille, etc.)
+- `search_criteria.json` - Criteres de recherche au format JSON :
+```json
+{
+  "keywords": ["SaaS sante", "CRM medical", "healthtech France"],
+  "sector": "sante",
+  "geographic_zone": "France",
+  "company_size": "startup",
+  "creation_year_min": 2018,
+  "max_results": 30
+}
+```
+Cles optionnelles : `keywords` (str ou list), `sector`, `geographic_zone`, `company_size`, `creation_year_min`, `creation_year_max`, `naf_codes` (list), `exclude_domains` (list), `max_results` (int, defaut 50)
 
 ## Output CSV (23 colonnes)
 
@@ -129,7 +140,7 @@ Fichier : `output/company_report.csv` (encode UTF-8 BOM pour Excel)
 | R-V | Decideur 3 | Meme structure que Decideur 1 |
 | W | Page Gamma | URL de la page web Gamma generee. Source : gamma_webpage_creation |
 
-### Post-processing CSV
+### Post-processing CSV (crew d'analyse)
 
 Apres l'execution du crew, `main.py` applique automatiquement un merge intelligent :
 
@@ -137,10 +148,27 @@ Apres l'execution du crew, `main.py` applique automatiquement un merge intellige
 2. **Nettoyage** : Suppression des artefacts markdown (code fences, lignes vides) du CSV temporaire (`output/company_report_new.csv`)
 3. **Deduplication** : `normalize_url()` normalise les URLs (suppression protocole, www, trailing slash) pour generer des cles uniques
 4. **Merge par URL** : Mise a jour si l'URL existe deja, ajout sinon
-5. **Backup automatique** : Sauvegarde avec timestamp avant ecrasement (`company_report_backup_YYYYMMDD_HHMMSS.csv`)
+5. **Backup automatique** : Sauvegarde avec timestamp avant ecrasement (`output/backups/company_report_YYYYMMDD_HHMMSS.csv`)
 6. **Validation colonnes** : Completion avec "Non trouve" si <23 colonnes, troncature si >23
 7. **Encodage** : Re-encodage UTF-8 BOM (`utf-8-sig`) pour compatibilite Excel
 8. **Nettoyage** : Suppression du fichier temporaire `company_report_new.csv`
+
+### Post-processing Search (crew de recherche)
+
+Apres l'execution du SearchCrew, `post_process_search_results()` applique :
+
+1. **Chargement** : Lecture du JSON brut (`output/search_results_raw.json`)
+2. **Nettoyage** : Suppression des artefacts markdown (code fences)
+3. **Parsing** : Extraction du JSON array d'URLs
+4. **Normalisation** : Ajout `https://` si absent, deduplication
+5. **Ecriture** : JSON final timestampe (`output/search_urls_YYYYMMDD_HHMMSS.json`)
+6. **Nettoyage** : Suppression du fichier brut temporaire
+
+### Logging
+
+Chaque execution genere un fichier de log structure dans `output/logs/{workflow}/` :
+- `output/logs/run/run_YYYYMMDD_HHMMSS.json` pour le crew d'analyse
+- `output/logs/search/search_YYYYMMDD_HHMMSS.json` pour le crew de recherche
 
 ## Scoring WakaStart (Pertinence)
 
@@ -209,12 +237,14 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 
 ## Tests
 
-Tests unitaires avec pytest :
+179 tests unitaires avec pytest :
 
 | Fichier | Couverture |
 |---------|------------|
 | `tests/conftest.py` | Fixtures partagees, mocks API (cles, reponses, instances tools) |
-| `tests/test_main.py` | `load_urls()`, `normalize_url()`, `load_existing_csv()`, `post_process_csv()` (41 tests) |
+| `tests/test_main.py` | `load_urls()`, `normalize_url()`, `load_existing_csv()`, `post_process_csv()` (59 tests) |
+| `tests/test_search_crew.py` | Init SearchCrew, agent, taches, crew config (5 tests) |
+| `tests/test_search_main.py` | `load_search_criteria()`, `format_search_criteria()`, `post_process_search_results()`, commande `search()` (85+ tests) |
 | `tests/tools/test_kaspr_tool.py` | Init, extraction LinkedIn ID, formatage contacts, appels API, erreurs HTTP |
 | `tests/tools/test_pappers_tool.py` | Init, recherche par nom/SIREN, formatage details, erreurs HTTP |
 | `tests/tools/test_gamma_tool.py` | Init, inputs, resolution logos (Clearbit/Google), prompt enrichi, appels API, polling, erreurs (39 tests) |
