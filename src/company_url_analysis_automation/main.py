@@ -8,6 +8,7 @@ import sys
 from datetime import datetime
 
 from company_url_analysis_automation.crew import CompanyUrlAnalysisAutomationCrew
+from company_url_analysis_automation.search_crew import SearchCrew
 
 # This main file is intended to be a way for your to run your
 # crew locally, so refrain from adding unnecessary logic into this file.
@@ -18,6 +19,10 @@ CSV_FINAL_PATH = "output/company_report.csv"
 CSV_NEW_PATH = "output/company_report_new.csv"
 EXPECTED_COLUMNS = 23
 URL_COLUMN_INDEX = 1  # Colonne "Site Web" (0-based)
+SEARCH_CRITERIA_DEFAULT = "search_criteria.json"
+SEARCH_RAW_OUTPUT = "output/search_results_raw.json"
+
+SearchCriteria = dict[str, str | int | list[str]]
 
 
 def load_urls(test_mode=True):

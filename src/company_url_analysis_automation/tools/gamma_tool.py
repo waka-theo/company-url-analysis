@@ -70,11 +70,78 @@ class GammaCreateTool(BaseTool):
     )
     args_schema: type[BaseModel] = GammaCreateInput
 
-    def _run(self, prompt: str) -> str:
+    def _resolve_company_logo(self, domain: str, company_name: str) -> str:
+        """Resout l'URL du logo de l'entreprise via Clearbit puis Google Favicon."""
+        clean_domain = domain.strip().lower()
+        clean_domain = clean_domain.replace("https://", "").replace("http://", "")
+        clean_domain = clean_domain.replace("www.", "").rstrip("/")
+
+        if not clean_domain:
+            print(f"[GAMMA DEBUG] Domaine vide pour {company_name}, pas de logo")
+            return ""
+
+        # Strategie 1 : Clearbit Logo API (gratuit, sans cle API)
+        clearbit_url = f"{CLEARBIT_LOGO_BASE}/{clean_domain}"
+        try:
+            response = requests.head(clearbit_url, timeout=5, allow_redirects=True)
+            if response.status_code == 200:
+                print(f"[GAMMA DEBUG] Logo Clearbit trouve pour {clean_domain}")
+                return clearbit_url
+            print(f"[GAMMA DEBUG] Clearbit HTTP {response.status_code} pour {clean_domain}")
+        except requests.exceptions.RequestException as e:
+            print(f"[GAMMA DEBUG] Clearbit erreur pour {clean_domain}: {e}")
+
+        # Strategie 2 : Google Favicon (fallback 128px)
+        google_url = GOOGLE_FAVICON_BASE.format(domain=clean_domain)
+        print(f"[GAMMA DEBUG] Fallback Google Favicon pour {clean_domain}")
+        return google_url
+
+    def _build_enhanced_prompt(
+        self,
+        original_prompt: str,
+        company_domain: str,
+        company_name: str,
+    ) -> str:
+        """Construit le prompt enrichi avec les 3 images pour la premiere page."""
+        company_logo_url = self._resolve_company_logo(company_domain, company_name)
+
+        image_lines: list[str] = []
+
+        if company_logo_url:
+            image_lines.append(
+                f"- A gauche, le logo de l'entreprise {company_name} : {company_logo_url}"
+            )
+
+        if OPPORTUNITY_ANALYSIS_IMAGE_URL:
+            image_lines.append(
+                f"- Au centre, l'image Opportunity Analysis : {OPPORTUNITY_ANALYSIS_IMAGE_URL}"
+            )
+
+        if WAKASTELLAR_LOGO_URL:
+            image_lines.append(
+                f"- A droite, le logo WakaStellar : {WAKASTELLAR_LOGO_URL}"
+            )
+
+        if not image_lines:
+            return original_prompt
+
+        image_section = (
+            "\n\n"
+            "IMAGES POUR LA PREMIERE PAGE (title card) :\n"
+            "Placer ces images/logos cote a cote sur la premiere page :\n"
+            + "\n".join(image_lines)
+        )
+
+        return original_prompt + image_section
+
+    def _run(self, prompt: str, company_name: str, company_domain: str) -> str:
         """Execute Gamma webpage creation from template."""
         api_key = os.getenv("GAMMA_API_KEY", "").strip()
         if not api_key:
             return "Erreur: GAMMA_API_KEY non configuree dans les variables d'environnement."
+
+        # Construire le prompt enrichi avec les images
+        enhanced_prompt = self._build_enhanced_prompt(prompt, company_domain, company_name)
 
         url = f"{GAMMA_API_BASE}/generations/from-template"
 
@@ -85,7 +152,7 @@ class GammaCreateTool(BaseTool):
 
         payload = {
             "gammaId": GAMMA_TEMPLATE_ID,
-            "prompt": prompt,
+            "prompt": enhanced_prompt,
             "sharingOptions": {
                 "workspaceAccess": "view",
                 "externalAccess": "view",
@@ -94,7 +161,7 @@ class GammaCreateTool(BaseTool):
 
         print(f"[GAMMA DEBUG] Creation from template: {GAMMA_TEMPLATE_ID}")
         print(f"[GAMMA DEBUG] Cle API : {api_key[:8]}... (longueur: {len(api_key)})")
-        print(f"[GAMMA DEBUG] Prompt (500 premiers chars): {prompt[:500]}")
+        print(f"[GAMMA DEBUG] Prompt enrichi (500 premiers chars): {enhanced_prompt[:500]}")
 
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=120)

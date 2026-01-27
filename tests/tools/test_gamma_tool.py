@@ -1,12 +1,15 @@
 """Tests unitaires pour GammaCreateTool."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from company_url_analysis_automation.tools.gamma_tool import (
+    CLEARBIT_LOGO_BASE,
     GAMMA_TEMPLATE_ID,
+    OPPORTUNITY_ANALYSIS_IMAGE_URL,
+    WAKASTELLAR_LOGO_URL,
     GammaCreateInput,
     GammaCreateTool,
 )
@@ -26,6 +29,139 @@ class TestGammaToolInstantiation:
 
 
 # ===========================================================================
+# Tests GammaCreateInput schema
+# ===========================================================================
+
+
+class TestGammaCreateInput:
+    def test_all_fields_required(self):
+        input_data = GammaCreateInput(
+            prompt="Test prompt",
+            company_name="TestCorp",
+            company_domain="testcorp.com",
+        )
+        assert input_data.prompt == "Test prompt"
+        assert input_data.company_name == "TestCorp"
+        assert input_data.company_domain == "testcorp.com"
+
+    def test_missing_company_name_raises(self):
+        with pytest.raises(Exception):
+            GammaCreateInput(prompt="Test", company_domain="test.com")
+
+    def test_missing_company_domain_raises(self):
+        with pytest.raises(Exception):
+            GammaCreateInput(prompt="Test", company_name="Test")
+
+
+# ===========================================================================
+# Tests _resolve_company_logo
+# ===========================================================================
+
+
+class TestResolveCompanyLogo:
+    PATCH_HEAD = "company_url_analysis_automation.tools.gamma_tool.requests.head"
+
+    def test_clearbit_success(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            result = gamma_tool._resolve_company_logo("wakastellar.com", "WakaStellar")
+            assert result == f"{CLEARBIT_LOGO_BASE}/wakastellar.com"
+
+    def test_clearbit_404_falls_back_to_google(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            result = gamma_tool._resolve_company_logo("unknown.xyz", "Unknown")
+            assert "google.com/s2/favicons" in result
+            assert "unknown.xyz" in result
+
+    def test_clearbit_timeout_falls_back_to_google(self, gamma_tool):
+        with patch(self.PATCH_HEAD, side_effect=requests.exceptions.Timeout):
+            result = gamma_tool._resolve_company_logo("slow.com", "Slow")
+            assert "google.com/s2/favicons" in result
+
+    def test_empty_domain_returns_empty(self, gamma_tool):
+        result = gamma_tool._resolve_company_logo("", "TestCorp")
+        assert result == ""
+
+    def test_cleans_https_prefix(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
+            gamma_tool._resolve_company_logo("https://www.testcorp.com/", "TestCorp")
+            call_url = mock_head.call_args[0][0]
+            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+
+    def test_cleans_http_prefix(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
+            gamma_tool._resolve_company_logo("http://testcorp.com", "TestCorp")
+            call_url = mock_head.call_args[0][0]
+            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+
+    def test_cleans_trailing_slash(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
+            gamma_tool._resolve_company_logo("testcorp.com/", "TestCorp")
+            call_url = mock_head.call_args[0][0]
+            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+
+
+# ===========================================================================
+# Tests _build_enhanced_prompt
+# ===========================================================================
+
+
+class TestBuildEnhancedPrompt:
+    PATCH_HEAD = "company_url_analysis_automation.tools.gamma_tool.requests.head"
+
+    def test_includes_all_three_images(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            result = gamma_tool._build_enhanced_prompt(
+                "Base prompt", "testcorp.com", "TestCorp"
+            )
+            assert "Base prompt" in result
+            assert f"{CLEARBIT_LOGO_BASE}/testcorp.com" in result
+            assert OPPORTUNITY_ANALYSIS_IMAGE_URL in result
+            assert WAKASTELLAR_LOGO_URL in result
+
+    def test_includes_placement_instructions(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            result = gamma_tool._build_enhanced_prompt(
+                "Base prompt", "testcorp.com", "TestCorp"
+            )
+            assert "IMAGES POUR LA PREMIERE PAGE" in result
+            assert "A gauche" in result
+            assert "Au centre" in result
+            assert "A droite" in result
+
+    def test_empty_domain_omits_company_logo(self, gamma_tool):
+        result = gamma_tool._build_enhanced_prompt("Base prompt", "", "TestCorp")
+        assert CLEARBIT_LOGO_BASE not in result
+        assert "A gauche" not in result
+        # Les deux autres images doivent toujours etre presentes
+        assert OPPORTUNITY_ANALYSIS_IMAGE_URL in result
+        assert WAKASTELLAR_LOGO_URL in result
+
+    def test_preserves_original_prompt(self, gamma_tool):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            original = "Mon prompt original avec du contenu important"
+            result = gamma_tool._build_enhanced_prompt(
+                original, "test.com", "Test"
+            )
+            assert result.startswith(original)
+
+
+# ===========================================================================
 # Tests _run
 # ===========================================================================
 
@@ -33,11 +169,20 @@ class TestGammaToolInstantiation:
 class TestGammaRun:
     PATCH_POST = "company_url_analysis_automation.tools.gamma_tool.requests.post"
     PATCH_GET = "company_url_analysis_automation.tools.gamma_tool.requests.get"
+    PATCH_HEAD = "company_url_analysis_automation.tools.gamma_tool.requests.head"
     PATCH_SLEEP = "company_url_analysis_automation.tools.gamma_tool.time.sleep"
     SAMPLE_PROMPT = "WakaStellar - SaaS B2B - Migration legacy"
+    SAMPLE_NAME = "TestCorp"
+    SAMPLE_DOMAIN = "testcorp.com"
+
+    def _mock_head_success(self):
+        """Retourne un mock HEAD Clearbit reussi."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        return mock_resp
 
     def test_missing_api_key(self, gamma_tool, clear_all_api_keys):
-        result = gamma_tool._run(self.SAMPLE_PROMPT)
+        result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
         assert "GAMMA_API_KEY non configuree" in result
 
     def test_success_calls_poll(self, gamma_tool, mock_gamma_api_key, mock_response, gamma_completed_status):
@@ -46,40 +191,59 @@ class TestGammaRun:
         with (
             patch(self.PATCH_POST, return_value=post_response),
             patch(self.PATCH_GET, return_value=get_response),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
             patch(self.PATCH_SLEEP),
         ):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "https://gamma.app/docs/abc123" in result
 
     def test_http_400(self, gamma_tool, mock_gamma_api_key, mock_response):
         resp = mock_response(400, {"message": "Invalid prompt"}, text="Bad Request")
-        with patch(self.PATCH_POST, return_value=resp):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, return_value=resp),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "validation" in result.lower() or "Invalid prompt" in result
 
     def test_http_403(self, gamma_tool, mock_gamma_api_key, mock_response):
-        with patch(self.PATCH_POST, return_value=mock_response(403, text="Forbidden")):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, return_value=mock_response(403, text="Forbidden")),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "invalide" in result.lower() or "permissions" in result.lower()
 
     def test_http_429(self, gamma_tool, mock_gamma_api_key, mock_response):
-        with patch(self.PATCH_POST, return_value=mock_response(429)):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, return_value=mock_response(429)),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "Limite" in result or "requetes" in result
 
     def test_http_500(self, gamma_tool, mock_gamma_api_key, mock_response):
-        with patch(self.PATCH_POST, return_value=mock_response(500, text="Server error")):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, return_value=mock_response(500, text="Server error")),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "code 500" in result
 
     def test_no_generation_id(self, gamma_tool, mock_gamma_api_key, mock_response):
-        with patch(self.PATCH_POST, return_value=mock_response(200, {})):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, return_value=mock_response(200, {})),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "sans generationId" in result
 
     def test_timeout(self, gamma_tool, mock_gamma_api_key):
-        with patch(self.PATCH_POST, side_effect=requests.exceptions.Timeout):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+        with (
+            patch(self.PATCH_POST, side_effect=requests.exceptions.Timeout),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
+        ):
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "Timeout" in result
             assert "120s" in result
 
@@ -89,24 +253,29 @@ class TestGammaRun:
         with (
             patch(self.PATCH_POST, return_value=post_response),
             patch(self.PATCH_GET, return_value=get_response),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
             patch(self.PATCH_SLEEP),
         ):
-            result = gamma_tool._run(self.SAMPLE_PROMPT)
+            result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "gamma.app" in result
 
-    def test_correct_payload(self, gamma_tool, mock_gamma_api_key, mock_response, gamma_completed_status):
+    def test_correct_payload_uses_enhanced_prompt(self, gamma_tool, mock_gamma_api_key, mock_response, gamma_completed_status):
         post_response = mock_response(200, {"generationId": "gen_payload"})
         get_response = mock_response(200, gamma_completed_status)
         with (
             patch(self.PATCH_POST, return_value=post_response) as mock_post,
             patch(self.PATCH_GET, return_value=get_response),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
             patch(self.PATCH_SLEEP),
         ):
-            gamma_tool._run(self.SAMPLE_PROMPT)
+            gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             call_kwargs = mock_post.call_args
             payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
             assert payload["gammaId"] == GAMMA_TEMPLATE_ID
-            assert payload["prompt"] == self.SAMPLE_PROMPT
+            # Le prompt doit etre enrichi (contient le prompt original + les images)
+            assert self.SAMPLE_PROMPT in payload["prompt"]
+            assert "IMAGES POUR LA PREMIERE PAGE" in payload["prompt"]
+            assert WAKASTELLAR_LOGO_URL in payload["prompt"]
             assert payload["sharingOptions"]["workspaceAccess"] == "view"
             assert payload["sharingOptions"]["externalAccess"] == "view"
 
@@ -116,9 +285,10 @@ class TestGammaRun:
         with (
             patch(self.PATCH_POST, return_value=post_response) as mock_post,
             patch(self.PATCH_GET, return_value=get_response),
+            patch(self.PATCH_HEAD, return_value=self._mock_head_success()),
             patch(self.PATCH_SLEEP),
         ):
-            gamma_tool._run(self.SAMPLE_PROMPT)
+            gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             call_kwargs = mock_post.call_args
             payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
             assert payload["gammaId"] == "g_w56csm22x0u632h"
