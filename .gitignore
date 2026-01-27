@@ -5,3 +5,5 @@ docs/
 .serena/
 .venv/
 output/
+.coverage
+tests/

@@ -11,14 +11,14 @@ GAMMA_TEMPLATE_ID = "g_w56csm22x0u632h"
 GAMMA_API_BASE = "https://public-api.gamma.app/v1.0"
 
 # URLs publiques des images statiques (GitHub Raw)
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/waka-theo/company-url-analysis/main/public"
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/waka-theo/company-url-analysis/refs/heads/main/public"
 WAKASTELLAR_LOGO_URL = f"{GITHUB_RAW_BASE}/Logos-Wakstellar_Nom-full-blanc.png"
 OPPORTUNITY_ANALYSIS_IMAGE_URL = (
     f"{GITHUB_RAW_BASE}/Gemini_Generated_Image_rzqb15rzqb15rzqb.png"
 )
 
 # APIs de resolution de logo entreprise
-CLEARBIT_LOGO_BASE = "https://logo.clearbit.com"
+UNAVATAR_BASE = "https://unavatar.io"
 GOOGLE_FAVICON_BASE = "https://www.google.com/s2/favicons?domain={domain}&sz=128"
 
 
@@ -71,7 +71,7 @@ class GammaCreateTool(BaseTool):
     args_schema: type[BaseModel] = GammaCreateInput
 
     def _resolve_company_logo(self, domain: str, company_name: str) -> str:
-        """Resout l'URL du logo de l'entreprise via Clearbit puis Google Favicon."""
+        """Resout l'URL du logo de l'entreprise via Unavatar puis Google Favicon."""
         clean_domain = domain.strip().lower()
         clean_domain = clean_domain.replace("https://", "").replace("http://", "")
         clean_domain = clean_domain.replace("www.", "").rstrip("/")
@@ -80,16 +80,16 @@ class GammaCreateTool(BaseTool):
             print(f"[GAMMA DEBUG] Domaine vide pour {company_name}, pas de logo")
             return ""
 
-        # Strategie 1 : Clearbit Logo API (gratuit, sans cle API)
-        clearbit_url = f"{CLEARBIT_LOGO_BASE}/{clean_domain}"
+        # Strategie 1 : Unavatar (gratuit, sans cle API, agrege plusieurs sources)
+        unavatar_url = f"{UNAVATAR_BASE}/{clean_domain}"
         try:
-            response = requests.head(clearbit_url, timeout=5, allow_redirects=True)
+            response = requests.head(unavatar_url, timeout=5, allow_redirects=True)
             if response.status_code == 200:
-                print(f"[GAMMA DEBUG] Logo Clearbit trouve pour {clean_domain}")
-                return clearbit_url
-            print(f"[GAMMA DEBUG] Clearbit HTTP {response.status_code} pour {clean_domain}")
+                print(f"[GAMMA DEBUG] Logo Unavatar trouve pour {clean_domain}")
+                return unavatar_url
+            print(f"[GAMMA DEBUG] Unavatar HTTP {response.status_code} pour {clean_domain}")
         except requests.exceptions.RequestException as e:
-            print(f"[GAMMA DEBUG] Clearbit erreur pour {clean_domain}: {e}")
+            print(f"[GAMMA DEBUG] Unavatar erreur pour {clean_domain}: {e}")
 
         # Strategie 2 : Google Favicon (fallback 128px)
         google_url = GOOGLE_FAVICON_BASE.format(domain=clean_domain)

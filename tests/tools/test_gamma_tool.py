@@ -6,9 +6,9 @@ import pytest
 import requests
 
 from company_url_analysis_automation.tools.gamma_tool import (
-    CLEARBIT_LOGO_BASE,
     GAMMA_TEMPLATE_ID,
     OPPORTUNITY_ANALYSIS_IMAGE_URL,
+    UNAVATAR_BASE,
     WAKASTELLAR_LOGO_URL,
     GammaCreateInput,
     GammaCreateTool,
@@ -61,14 +61,14 @@ class TestGammaCreateInput:
 class TestResolveCompanyLogo:
     PATCH_HEAD = "company_url_analysis_automation.tools.gamma_tool.requests.head"
 
-    def test_clearbit_success(self, gamma_tool):
+    def test_unavatar_success(self, gamma_tool):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
             result = gamma_tool._resolve_company_logo("wakastellar.com", "WakaStellar")
-            assert result == f"{CLEARBIT_LOGO_BASE}/wakastellar.com"
+            assert result == f"{UNAVATAR_BASE}/wakastellar.com"
 
-    def test_clearbit_404_falls_back_to_google(self, gamma_tool):
+    def test_unavatar_404_falls_back_to_google(self, gamma_tool):
         mock_resp = MagicMock()
         mock_resp.status_code = 404
         with patch(self.PATCH_HEAD, return_value=mock_resp):
@@ -76,7 +76,7 @@ class TestResolveCompanyLogo:
             assert "google.com/s2/favicons" in result
             assert "unknown.xyz" in result
 
-    def test_clearbit_timeout_falls_back_to_google(self, gamma_tool):
+    def test_unavatar_timeout_falls_back_to_google(self, gamma_tool):
         with patch(self.PATCH_HEAD, side_effect=requests.exceptions.Timeout):
             result = gamma_tool._resolve_company_logo("slow.com", "Slow")
             assert "google.com/s2/favicons" in result
@@ -91,7 +91,7 @@ class TestResolveCompanyLogo:
         with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
             gamma_tool._resolve_company_logo("https://www.testcorp.com/", "TestCorp")
             call_url = mock_head.call_args[0][0]
-            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+            assert call_url == f"{UNAVATAR_BASE}/testcorp.com"
 
     def test_cleans_http_prefix(self, gamma_tool):
         mock_resp = MagicMock()
@@ -99,7 +99,7 @@ class TestResolveCompanyLogo:
         with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
             gamma_tool._resolve_company_logo("http://testcorp.com", "TestCorp")
             call_url = mock_head.call_args[0][0]
-            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+            assert call_url == f"{UNAVATAR_BASE}/testcorp.com"
 
     def test_cleans_trailing_slash(self, gamma_tool):
         mock_resp = MagicMock()
@@ -107,7 +107,7 @@ class TestResolveCompanyLogo:
         with patch(self.PATCH_HEAD, return_value=mock_resp) as mock_head:
             gamma_tool._resolve_company_logo("testcorp.com/", "TestCorp")
             call_url = mock_head.call_args[0][0]
-            assert call_url == f"{CLEARBIT_LOGO_BASE}/testcorp.com"
+            assert call_url == f"{UNAVATAR_BASE}/testcorp.com"
 
 
 # ===========================================================================
@@ -126,7 +126,7 @@ class TestBuildEnhancedPrompt:
                 "Base prompt", "testcorp.com", "TestCorp"
             )
             assert "Base prompt" in result
-            assert f"{CLEARBIT_LOGO_BASE}/testcorp.com" in result
+            assert f"{UNAVATAR_BASE}/testcorp.com" in result
             assert OPPORTUNITY_ANALYSIS_IMAGE_URL in result
             assert WAKASTELLAR_LOGO_URL in result
 
@@ -144,7 +144,7 @@ class TestBuildEnhancedPrompt:
 
     def test_empty_domain_omits_company_logo(self, gamma_tool):
         result = gamma_tool._build_enhanced_prompt("Base prompt", "", "TestCorp")
-        assert CLEARBIT_LOGO_BASE not in result
+        assert UNAVATAR_BASE not in result
         assert "A gauche" not in result
         # Les deux autres images doivent toujours etre presentes
         assert OPPORTUNITY_ANALYSIS_IMAGE_URL in result
@@ -176,7 +176,7 @@ class TestGammaRun:
     SAMPLE_DOMAIN = "testcorp.com"
 
     def _mock_head_success(self):
-        """Retourne un mock HEAD Clearbit reussi."""
+        """Retourne un mock HEAD Unavatar reussi."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         return mock_resp

@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
 from company_url_analysis_automation.tools.gamma_tool import (
-    CLEARBIT_LOGO_BASE,
+    UNAVATAR_BASE,
     GammaCreateTool,
 )
 
@@ -42,6 +42,7 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 results: list[tuple[str, str, bool]] = []
+_gamma_url: str | None = None
 
 
 def header(test_id: str, description: str) -> None:
@@ -117,10 +118,10 @@ def test_2_3_6_missing_api_key() -> None:
             os.environ["GAMMA_API_KEY"] = original_key
 
 
-def test_2_3_2_clearbit_logo_resolution() -> None:
-    """Verifie que le logo est resolu via Clearbit pour google.com."""
+def test_2_3_2_unavatar_logo_resolution() -> None:
+    """Verifie que le logo est resolu via Unavatar pour google.com."""
     test_id = "2.3.2"
-    desc = "Resolution logo via Clearbit (google.com)"
+    desc = "Resolution logo via Unavatar (google.com)"
     header(test_id, desc)
 
     tool = GammaCreateTool()
@@ -135,19 +136,19 @@ def test_2_3_2_clearbit_logo_resolution() -> None:
     for line in output.strip().splitlines():
         print(f"    {line}")
 
-    clearbit_expected = f"{CLEARBIT_LOGO_BASE}/google.com"
+    unavatar_expected = f"{UNAVATAR_BASE}/google.com"
     checks_passed = True
 
-    if logo_url == clearbit_expected:
-        print(f"  {GREEN}OK{RESET} URL Clearbit correcte")
+    if logo_url == unavatar_expected:
+        print(f"  {GREEN}OK{RESET} URL Unavatar correcte")
     else:
-        print(f"  {RED}KO{RESET} Attendu : {clearbit_expected}, obtenu : {logo_url}")
+        print(f"  {RED}KO{RESET} Attendu : {unavatar_expected}, obtenu : {logo_url}")
         checks_passed = False
 
-    if "Logo Clearbit trouve" in output:
-        print(f"  {GREEN}OK{RESET} Log 'Logo Clearbit trouve' present")
+    if "Logo Unavatar trouve" in output:
+        print(f"  {GREEN}OK{RESET} Log 'Logo Unavatar trouve' present")
     else:
-        print(f"  {RED}KO{RESET} Log 'Logo Clearbit trouve' absent")
+        print(f"  {RED}KO{RESET} Log 'Logo Unavatar trouve' absent")
         checks_passed = False
 
     if checks_passed:
@@ -196,8 +197,9 @@ def test_2_3_3_google_fallback_logo() -> None:
         report_fail(test_id, desc)
 
 
-def test_2_3_1_full_page_creation() -> str | None:
+def test_2_3_1_full_page_creation() -> None:
     """Appel reel a GammaCreateTool._run -> attend une URL gamma.app valide."""
+    global _gamma_url
     test_id = "2.3.1"
     desc = "Creation complete d'une page Gamma (France Care)"
     header(test_id, desc)
@@ -223,13 +225,12 @@ def test_2_3_1_full_page_creation() -> str | None:
 
     if "https://gamma.app/" in result and "Erreur" not in result:
         report_pass(test_id, desc, f"URL : {result}")
-        return result
+        _gamma_url = result
     else:
         report_fail(test_id, desc, f"Resultat inattendu : {result}")
-        return None
 
 
-def test_2_3_4_page_accessibility(gamma_url: str | None) -> None:
+def _test_2_3_4_page_accessibility(gamma_url: str | None) -> None:
     """Ouvre l'URL Gamma dans le navigateur pour verification visuelle."""
     test_id = "2.3.4"
     desc = "Accessibilite publique de la page Gamma"
@@ -258,7 +259,7 @@ def test_2_3_4_page_accessibility(gamma_url: str | None) -> None:
         report_fail(test_id, desc, "Verification manuelle echouee")
 
 
-def test_2_3_5_three_images_first_page(gamma_url: str | None) -> None:
+def _test_2_3_5_three_images_first_page(gamma_url: str | None) -> None:
     """Verification visuelle des 3 images sur la premiere page."""
     test_id = "2.3.5"
     desc = "3 images premiere page (logo + Opportunity + WakaStellar)"
@@ -312,15 +313,15 @@ def main() -> None:
 
     # 1. Tests rapides (pas d'appel Gamma)
     test_2_3_6_missing_api_key()
-    test_2_3_2_clearbit_logo_resolution()
+    test_2_3_2_unavatar_logo_resolution()
     test_2_3_3_google_fallback_logo()
 
     # 2. Test principal (appel API Gamma reel)
-    gamma_url = test_2_3_1_full_page_creation()
+    test_2_3_1_full_page_creation()
 
     # 3. Tests visuels (interaction utilisateur)
-    test_2_3_4_page_accessibility(gamma_url)
-    test_2_3_5_three_images_first_page(gamma_url)
+    _test_2_3_4_page_accessibility(_gamma_url)
+    _test_2_3_5_three_images_first_page(_gamma_url)
 
     # Resume
     print_summary()
