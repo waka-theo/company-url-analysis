@@ -168,7 +168,7 @@ class CompanyUrlAnalysisAutomationCrew:
         return Task(
             config=self.tasks_config["compile_final_company_analysis_report"],
             markdown=False,
-            output_file="output/company_report.csv",
+            output_file="output/company_report_new.csv",
         )
 
     @crew

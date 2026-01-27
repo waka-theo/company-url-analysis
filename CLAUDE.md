@@ -31,6 +31,17 @@ crewai replay <task_id>
 
 # Add new dependencies
 uv add <package-name>
+
+# Run unit tests
+pytest
+```
+
+Commandes alternatives via `main.py` :
+```bash
+python main.py run           # Lance le crew
+python main.py train N FILE  # Entrainement (N iterations, FILE output)
+python main.py replay TASKID # Replay tache specifique
+python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
 ```
 
 ## Architecture
