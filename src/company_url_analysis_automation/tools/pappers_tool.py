@@ -1,7 +1,6 @@
 """Pappers API Tool for French company data retrieval."""
 
 import os
-from typing import Optional, Type
 
 import requests
 from crewai.tools import BaseTool
@@ -11,16 +10,13 @@ from pydantic import BaseModel, Field
 class PappersSearchInput(BaseModel):
     """Input schema for PappersSearchTool."""
 
-    query: str = Field(
-        ...,
-        description="Nom de l'entreprise ou numéro SIREN à rechercher"
-    )
+    query: str = Field(..., description="Nom de l'entreprise ou numéro SIREN à rechercher")
 
 
 class PappersSearchTool(BaseTool):
     """
     Outil pour rechercher des entreprises françaises via l'API Pappers.
-    
+
     Retourne les informations légales, les dirigeants et les données financières.
     """
 
@@ -31,7 +27,7 @@ class PappersSearchTool(BaseTool):
         "les dirigeants (noms, fonctions) et les données financières (CA, effectif). "
         "Utilise cet outil pour obtenir des données officielles sur les entreprises françaises."
     )
-    args_schema: Type[BaseModel] = PappersSearchInput
+    args_schema: type[BaseModel] = PappersSearchInput
 
     def _run(self, query: str) -> str:
         """Execute Pappers search."""
@@ -50,22 +46,15 @@ class PappersSearchTool(BaseTool):
             if is_siren:
                 # Recherche directe par SIREN
                 response = requests.get(
-                    f"{base_url}/entreprise",
-                    headers=headers,
-                    params={"siren": clean_query},
-                    timeout=30
+                    f"{base_url}/entreprise", headers=headers, params={"siren": clean_query}, timeout=30
                 )
             else:
                 # Recherche par nom d'entreprise
                 response = requests.get(
                     f"{base_url}/recherche",
                     headers=headers,
-                    params={
-                        "q": query,
-                        "par_page": 5,
-                        "cibles": "nom_entreprise,denomination"
-                    },
-                    timeout=30
+                    params={"q": query, "par_page": 5, "cibles": "nom_entreprise,denomination"},
+                    timeout=30,
                 )
 
             if response.status_code == 401:
@@ -85,9 +74,9 @@ class PappersSearchTool(BaseTool):
         except requests.exceptions.Timeout:
             return "Erreur: Timeout lors de la connexion à l'API Pappers."
         except requests.exceptions.RequestException as e:
-            return f"Erreur de connexion à l'API Pappers: {str(e)}"
+            return f"Erreur de connexion à l'API Pappers: {e!s}"
         except Exception as e:
-            return f"Erreur inattendue: {str(e)}"
+            return f"Erreur inattendue: {e!s}"
 
     def _format_company_details(self, data: dict) -> str:
         """Format detailed company information."""
@@ -101,7 +90,7 @@ class PappersSearchTool(BaseTool):
         result_parts.append(f"- Forme juridique: {data.get('forme_juridique', 'N/A')}")
         result_parts.append(f"- Date de création: {data.get('date_creation', 'N/A')}")
         result_parts.append(f"- Date immatriculation RCS: {data.get('date_immatriculation_rcs', 'N/A')}")
-        
+
         # Statut
         statut = "Active" if not data.get("entreprise_cessee") else "Cessée"
         result_parts.append(f"- Statut: {statut}")
@@ -123,7 +112,7 @@ class PappersSearchTool(BaseTool):
             ca = finances.get("chiffre_affaires")
             resultat = finances.get("resultat")
             effectif = data.get("effectif")
-            
+
             if ca:
                 result_parts.append(f"- Chiffre d'affaires: {ca:,.0f} EUR".replace(",", " "))
             if resultat:
@@ -154,23 +143,23 @@ class PappersSearchTool(BaseTool):
     def _format_search_results(self, data: dict, query: str) -> str:
         """Format search results."""
         results = []
-        
+
         # Récupérer les résultats de différentes sources
         for key in ["resultats_nom_entreprise", "resultats_denomination", "resultats"]:
-            if key in data and data[key]:
+            if data.get(key):
                 results.extend(data[key])
 
         if not results:
             return f"Aucune entreprise trouvée pour: {query}"
 
         result_parts = [f"**Résultats pour '{query}':**\n"]
-        
+
         for i, entreprise in enumerate(results[:5], 1):
             nom = entreprise.get("nom_entreprise") or entreprise.get("denomination") or "Nom inconnu"
             siren = entreprise.get("siren", "N/A")
             ville = entreprise.get("siege", {}).get("ville", "") if entreprise.get("siege") else ""
             date_creation = entreprise.get("date_creation", "")
-            
+
             result_parts.append(f"{i}. **{nom}**")
             result_parts.append(f"   - SIREN: {siren}")
             if ville:
@@ -180,5 +169,5 @@ class PappersSearchTool(BaseTool):
             result_parts.append("")
 
         result_parts.append("\n💡 Pour plus de détails, recherchez avec le numéro SIREN.")
-        
+
         return "\n".join(result_parts)

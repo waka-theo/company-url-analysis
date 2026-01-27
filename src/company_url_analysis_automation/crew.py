@@ -1,24 +1,14 @@
-import os
-
-from crewai import LLM
-from crewai import Agent, Crew, Process, Task
+from crewai import LLM, Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
-from crewai_tools import (
-	ScrapeWebsiteTool,
-	SerperDevTool
-)
+from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 
-from .tools import PappersSearchTool, KasprEnrichTool
-
-
-
+from .tools import GammaCreateTool, KasprEnrichTool, PappersSearchTool
 
 
 @CrewBase
 class CompanyUrlAnalysisAutomationCrew:
     """CompanyUrlAnalysisAutomation crew"""
 
-    
     @agent
     def economic_intelligence_analyst(self) -> Agent:
         """ACT 0 + ACT 1 : Expert en Intelligence Économique & Tech Scouting"""
@@ -77,6 +67,25 @@ class CompanyUrlAnalysisAutomationCrew:
         )
 
     @agent
+    def gamma_webpage_creator(self) -> Agent:
+        """Architecte de Contenu Commercial Digital - Creation pages Gamma"""
+        return Agent(
+            config=self.agents_config["gamma_webpage_creator"],
+            tools=[GammaCreateTool()],
+            reasoning=False,
+            max_reasoning_attempts=None,
+            inject_date=True,
+            allow_delegation=False,
+            max_iter=25,
+            max_rpm=None,
+            max_execution_time=None,
+            llm=LLM(
+                model="openai/gpt-4o",
+                temperature=0.3,
+            ),
+        )
+
+    @agent
     def lead_generation_expert(self) -> Agent:
         """ACT 5 : Expert en Lead Generation & Profiling"""
         return Agent(
@@ -97,7 +106,7 @@ class CompanyUrlAnalysisAutomationCrew:
 
     @agent
     def data_compiler_and_reporter(self) -> Agent:
-        """Data Compiler : Compilation CSV finale (22 colonnes)"""
+        """Data Compiler : Compilation CSV finale (23 colonnes)"""
         return Agent(
             config=self.agents_config["data_compiler_and_reporter"],
             tools=[],
@@ -114,8 +123,6 @@ class CompanyUrlAnalysisAutomationCrew:
             ),
         )
 
-
-
     @task
     def extraction_and_macro_filtering(self) -> Task:
         """ACT 0 + ACT 1 : Extraction, nettoyage, filtrage macro et détection SaaS caché"""
@@ -123,7 +130,7 @@ class CompanyUrlAnalysisAutomationCrew:
             config=self.tasks_config["extraction_and_macro_filtering"],
             markdown=False,
         )
-    
+
     @task
     def origin_identification_and_saas_qualification(self) -> Task:
         """ACT 2 + ACT 3 : Identification origine et qualification SaaS"""
@@ -137,6 +144,14 @@ class CompanyUrlAnalysisAutomationCrew:
         """ACT 4 : Analyse commerciale et scoring WakaStart"""
         return Task(
             config=self.tasks_config["commercial_analysis"],
+            markdown=False,
+        )
+
+    @task
+    def gamma_webpage_creation(self) -> Task:
+        """Creation de pages web Gamma pour chaque prospect"""
+        return Task(
+            config=self.tasks_config["gamma_webpage_creation"],
             markdown=False,
         )
 
@@ -155,7 +170,6 @@ class CompanyUrlAnalysisAutomationCrew:
             markdown=False,
             output_file="output/company_report.csv",
         )
-    
 
     @crew
     def crew(self) -> Crew:
@@ -167,9 +181,3 @@ class CompanyUrlAnalysisAutomationCrew:
             verbose=True,
             chat_llm=LLM(model="openai/gpt-4o-mini"),
         )
-
-    def _load_response_format(self, name):
-        with open(os.path.join(self.base_directory, "config", f"{name}.json")) as f:
-            json_schema = json.loads(f.read())
-
-        return SchemaConverter.build(json_schema)

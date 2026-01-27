@@ -35,24 +35,26 @@ uv add <package-name>
 
 ## Architecture
 
-### Workflow d'execution (5 taches sequentielles)
+### Workflow d'execution (6 taches sequentielles)
 
 | ACT | Agent | Modele LLM | Role |
 |-----|-------|------------|------|
 | 0+1 | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
 | 2+3 | `corporate_analyst_and_saas_qualifier` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.4) | Nationalite, annee creation, qualification technique SaaS |
 | 4 | `wakastart_sales_engineer` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
+| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page web Gamma a partir de l'argumentaire ACT 4 |
 | 5 | `lead_generation_expert` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.2) | Identification des 3 decideurs + enrichissement Kaspr |
-| Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (22 colonnes) |
+| Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
 ### Key Files
 
 - `src/company_url_analysis_automation/crew.py` - Definitions agents et taches avec decorateurs `@agent`, `@task`, `@crew`
 - `src/company_url_analysis_automation/config/agents.yaml` - Roles, goals, backstories des agents
 - `src/company_url_analysis_automation/config/tasks.yaml` - Descriptions des taches et outputs attendus
-- `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV (UTF-8 BOM, validation 22 colonnes)
+- `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV (UTF-8 BOM, validation 23 colonnes)
 - `src/company_url_analysis_automation/tools/kaspr_tool.py` - Enrichissement contacts via API Kaspr (email, telephone)
 - `src/company_url_analysis_automation/tools/pappers_tool.py` - Donnees legales entreprises via API Pappers
+- `src/company_url_analysis_automation/tools/gamma_tool.py` - Creation pages web via API Gamma
 
 ### Tools disponibles par agent
 
@@ -61,6 +63,7 @@ uv add <package-name>
 | `economic_intelligence_analyst` | ScrapeWebsiteTool, SerperDevTool, PappersSearchTool |
 | `corporate_analyst_and_saas_qualifier` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool |
 | `wakastart_sales_engineer` | SerperDevTool, PappersSearchTool |
+| `gamma_webpage_creator` | GammaCreateTool |
 | `lead_generation_expert` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool, KasprEnrichTool |
 | `data_compiler_and_reporter` | Aucun (compilation pure) |
 
@@ -70,7 +73,7 @@ Le crew attend un dict `inputs` avec une cle `urls` (voir `main.py`). Les fichie
 - `liste_test.json` - URLs pour les tests
 - `liste.json` - URLs en production
 
-## Output CSV (22 colonnes)
+## Output CSV (23 colonnes)
 
 Fichier : `output/company_report.csv` (encode UTF-8 BOM pour Excel)
 
@@ -90,12 +93,13 @@ Fichier : `output/company_report.csv` (encode UTF-8 BOM pour Excel)
 | L | Decideur 1 - LinkedIn | URL du profil |
 | M-Q | Decideur 2 | Meme structure que Decideur 1 |
 | R-V | Decideur 3 | Meme structure que Decideur 1 |
+| W | Page Gamma | URL de la page web Gamma generee. Source : gamma_webpage_creation |
 
 ### Post-processing CSV
 
 Apres l'execution du crew, `main.py` applique automatiquement :
 1. Re-encodage UTF-8 BOM (`utf-8-sig`) pour compatibilite Excel
-2. Validation du nombre de colonnes (22 attendues)
+2. Validation du nombre de colonnes (23 attendues)
 3. Completion des lignes trop courtes avec "Non trouve"
 4. Troncature des lignes trop longues
 
@@ -130,11 +134,12 @@ Ne pas s'arreter a la vitrine. Chercher des indices :
 
 Requires `.env` file with:
 ```bash
-OPENAI_API_KEY=...          # Required - GPT-4o (agents ACT 0+1 et data_compiler)
+OPENAI_API_KEY=...          # Required - GPT-4o (agents ACT 0+1, Gamma et data_compiler)
 ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5 (agents ACT 2+3, ACT 4, ACT 5)
 SERPER_API_KEY=...          # Required - Recherche web (SerperDevTool)
 PAPPERS_API_KEY=...         # Optional - Donnees legales SIREN/SIRET
 KASPR_API_KEY=...           # Optional - Enrichissement leads (email + telephone via LinkedIn)
+GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 ```
 
 ### Kaspr API
@@ -147,8 +152,18 @@ KASPR_API_KEY=...           # Optional - Enrichissement leads (email + telephone
 - Ne fonctionne PAS avec les URLs SalesNavigator
 - Credits consommes par requete (plan Starter minimum)
 
+### Gamma API
+
+- Endpoint : `POST https://public-api.gamma.app/v1.0/generations`
+- Auth : `X-API-KEY: {GAMMA_API_KEY}`
+- Payload : `{ "inputText": "contenu", "textMode": "preserve", "format": "webpage", ... }`
+- Reponse : `{ "generationId": "xxx" }` → URL : `https://gamma.app/docs/{generationId}`
+- Partage : `workspaceAccess: "view"`, `externalAccess: "noAccess"` (interne uniquement)
+- Cards : separees par `\n---\n` dans inputText avec `cardSplit: "inputTextBreaks"`
+
 ## Documentation de reference
 
 - `/docs/Projet WakaStart.pdf` - Description complete de la plateforme WakaStart
 - `/docs/Protocole Theo.pdf` - Description complete du projet
 - `/docs/kaspr.txt` - Documentation API Kaspr
+- `/docs/gamma_api.txt` - Documentation API Gamma

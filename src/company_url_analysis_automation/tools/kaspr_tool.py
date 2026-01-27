@@ -2,7 +2,6 @@
 
 import os
 import re
-from typing import Optional, Type
 
 import requests
 from crewai.tools import BaseTool
@@ -13,19 +12,15 @@ class KasprEnrichInput(BaseModel):
     """Input schema for KasprEnrichTool."""
 
     linkedin_url: str = Field(
-        ...,
-        description="URL du profil LinkedIn de la personne à enrichir (format: https://www.linkedin.com/in/xxx)"
+        ..., description="URL du profil LinkedIn de la personne à enrichir (format: https://www.linkedin.com/in/xxx)"
     )
-    full_name: str = Field(
-        ...,
-        description="Nom complet de la personne (Prénom Nom)"
-    )
+    full_name: str = Field(..., description="Nom complet de la personne (Prénom Nom)")
 
 
 class KasprEnrichTool(BaseTool):
     """
     Outil pour enrichir les informations de contact via l'API Kaspr.
-    
+
     À partir d'une URL LinkedIn et d'un nom, retourne l'email et le téléphone professionnels.
     """
 
@@ -37,7 +32,7 @@ class KasprEnrichTool(BaseTool):
         "IMPORTANT: Nécessite une URL LinkedIn standard (pas SalesNavigator). "
         "Utilise cet outil pour obtenir les coordonnées vérifiées des décideurs."
     )
-    args_schema: Type[BaseModel] = KasprEnrichInput
+    args_schema: type[BaseModel] = KasprEnrichInput
 
     def _run(self, linkedin_url: str, full_name: str) -> str:
         """Execute Kaspr contact enrichment."""
@@ -48,7 +43,9 @@ class KasprEnrichTool(BaseTool):
         # Extraire l'ID LinkedIn de l'URL
         linkedin_id = self._extract_linkedin_id(linkedin_url)
         if not linkedin_id:
-            return f"Erreur: URL LinkedIn invalide: {linkedin_url}. Format attendu: https://www.linkedin.com/in/username"
+            return (
+                f"Erreur: URL LinkedIn invalide: {linkedin_url}. Format attendu: https://www.linkedin.com/in/username"
+            )
 
         url = "https://api.developers.kaspr.io/profile/linkedin"
 
@@ -56,25 +53,16 @@ class KasprEnrichTool(BaseTool):
             "Authorization": f"Bearer {api_key}",
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "accept-version": "v2.0"
+            "accept-version": "v2.0",
         }
 
-        payload = {
-            "id": linkedin_id,
-            "name": full_name,
-            "dataToGet": ["phone", "workEmail", "directEmail"]
-        }
+        payload = {"id": linkedin_id, "name": full_name, "dataToGet": ["phone", "workEmail", "directEmail"]}
 
         print(f"[KASPR DEBUG] Clé API: {api_key[:8]}... (longueur: {len(api_key)})")
         print(f"[KASPR DEBUG] Payload: {payload}")
 
         try:
-            response = requests.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
 
             print(f"[KASPR DEBUG] Status: {response.status_code}")
 
@@ -99,23 +87,23 @@ class KasprEnrichTool(BaseTool):
         except requests.exceptions.Timeout:
             return "Erreur: Timeout lors de la connexion à l'API Kaspr."
         except requests.exceptions.RequestException as e:
-            return f"Erreur de connexion à l'API Kaspr: {str(e)}"
+            return f"Erreur de connexion à l'API Kaspr: {e!s}"
         except Exception as e:
-            return f"Erreur inattendue: {str(e)}"
+            return f"Erreur inattendue: {e!s}"
 
-    def _extract_linkedin_id(self, url: str) -> Optional[str]:
+    def _extract_linkedin_id(self, url: str) -> str | None:
         """Extract LinkedIn ID from URL."""
         # Patterns pour extraire l'ID LinkedIn
         patterns = [
             r"linkedin\.com/in/([^/?]+)",
             r"linkedin\.com/pub/([^/?]+)",
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, url, re.IGNORECASE)
             if match:
                 return match.group(1).strip("/")
-        
+
         return None
 
     def _format_contact_info(self, data: dict, name: str, linkedin_url: str) -> str:
