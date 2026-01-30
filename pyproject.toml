@@ -1,7 +1,7 @@
 [project]
-name = "company_url_analysis_automation"
+name = "wakastart_leads"
 version = "0.1.0"
-description = "company_url_analysis_automation using crewAI"
+description = "Multi-agent system for SaaS lead sourcing and enrichment"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
@@ -12,17 +12,20 @@ dependencies = [
 ]
 
 [project.scripts]
-company_url_analysis_automation = "company_url_analysis_automation.main:run"
-run_crew = "company_url_analysis_automation.main:run"
-train = "company_url_analysis_automation.main:train"
-replay = "company_url_analysis_automation.main:replay"
-test = "company_url_analysis_automation.main:test"
-run_with_trigger = "company_url_analysis_automation.main:run_with_trigger"
-search = "company_url_analysis_automation.main:search"
+wakastart = "wakastart_leads.main:cli"
+wakastart-run = "wakastart_leads.main:run"
+wakastart-search = "wakastart_leads.main:search"
+wakastart-enrich = "wakastart_leads.main:enrich"
+wakastart-train = "wakastart_leads.main:train"
+wakastart-replay = "wakastart_leads.main:replay"
+wakastart-test = "wakastart_leads.main:test"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wakastart_leads"]
 
 [tool.crewai]
 type = "crew"
@@ -45,20 +48,20 @@ line-length = 120
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "SIM",  # flake8-simplify
-    "TCH",  # flake8-type-checking
-    "RUF",  # ruff-specific rules
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "SIM",
+    "TCH",
+    "RUF",
 ]
 ignore = [
-    "E501",   # line too long (géré par le formatter)
+    "E501",
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["company_url_analysis_automation"]
+known-first-party = ["wakastart_leads"]
