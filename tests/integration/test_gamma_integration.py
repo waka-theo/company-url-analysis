@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from company_url_analysis_automation.tools.gamma_tool import (
+from wakastart_leads.crews.analysis.tools.gamma_tool import (
     UNAVATAR_BASE,
     GammaCreateTool,
 )

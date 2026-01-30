@@ -1,18 +1,13 @@
-"""Tests unitaires pour les fonctions search de main.py."""
+"""Tests unitaires pour les fonctions search dans shared/utils."""
 
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-import company_url_analysis_automation.main as main_module
-from company_url_analysis_automation.main import (
-    format_search_criteria,
-    load_search_criteria,
-    normalize_url,
-    post_process_search_results,
-)
+from wakastart_leads.shared.utils.url import normalize_url
+import wakastart_leads.main as main_module
 
 
 def _fake_file_path(tmp_path) -> str:
@@ -35,6 +30,8 @@ class TestLoadSearchCriteria:
 
     def test_loads_from_file(self, tmp_path, monkeypatch):
         """Charge correctement un fichier de criteres JSON."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria = {"keywords": ["SaaS"], "sector": "sante"}
         criteria_file = tmp_path / "search_criteria.json"
         criteria_file.write_text(json.dumps(criteria), encoding="utf-8")
@@ -45,6 +42,8 @@ class TestLoadSearchCriteria:
 
     def test_loads_from_custom_path(self, tmp_path, monkeypatch):
         """Charge depuis un chemin personnalise."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria = {"sector": "finance"}
         custom_file = tmp_path / "custom_criteria.json"
         custom_file.write_text(json.dumps(criteria), encoding="utf-8")
@@ -55,6 +54,8 @@ class TestLoadSearchCriteria:
 
     def test_loads_from_relative_path(self, tmp_path, monkeypatch):
         """Charge depuis un chemin relatif (resolu par rapport a la racine du projet)."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria = {"keywords": ["ERP"]}
         criteria_file = tmp_path / "my_criteria.json"
         criteria_file.write_text(json.dumps(criteria), encoding="utf-8")
@@ -65,18 +66,24 @@ class TestLoadSearchCriteria:
 
     def test_file_not_found(self, tmp_path, monkeypatch):
         """Leve FileNotFoundError si le fichier n'existe pas."""
+        from wakastart_leads.main import load_search_criteria
+
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
         with pytest.raises(FileNotFoundError, match="Fichier de criteres non trouve"):
             load_search_criteria()
 
     def test_file_not_found_custom_path(self, tmp_path, monkeypatch):
         """Leve FileNotFoundError pour un chemin custom inexistant."""
+        from wakastart_leads.main import load_search_criteria
+
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
         with pytest.raises(FileNotFoundError):
             load_search_criteria("nonexistent.json")
 
     def test_all_fields(self, tmp_path, monkeypatch):
         """Charge tous les champs possibles."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria = {
             "keywords": ["SaaS sante", "CRM"],
             "sector": "sante",
@@ -97,6 +104,8 @@ class TestLoadSearchCriteria:
 
     def test_empty_object(self, tmp_path, monkeypatch):
         """Un objet JSON vide est valide."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria_file = tmp_path / "search_criteria.json"
         criteria_file.write_text("{}", encoding="utf-8")
 
@@ -106,6 +115,8 @@ class TestLoadSearchCriteria:
 
     def test_invalid_json(self, tmp_path, monkeypatch):
         """Leve une erreur sur un JSON invalide."""
+        from wakastart_leads.main import load_search_criteria
+
         criteria_file = tmp_path / "search_criteria.json"
         criteria_file.write_text("not valid json", encoding="utf-8")
 
@@ -123,50 +134,68 @@ class TestFormatSearchCriteria:
     """Tests pour la fonction format_search_criteria."""
 
     def test_keywords_list(self):
-        """Formate une liste de mots-cles."""
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"keywords": ["SaaS", "CRM", "ERP"]})
         assert "Mots-cles: SaaS, CRM, ERP" in result
 
     def test_keywords_string(self):
-        """Formate un mot-cle unique (string)."""
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"keywords": "SaaS sante"})
         assert "Mots-cles: SaaS sante" in result
 
     def test_sector(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"sector": "sante"})
         assert "Secteur: sante" in result
 
     def test_geographic_zone(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"geographic_zone": "France"})
         assert "Zone geographique: France" in result
 
     def test_company_size(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"company_size": "startup"})
         assert "Taille entreprise: startup" in result
 
     def test_creation_year_min(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"creation_year_min": 2018})
         assert "Annee creation min: 2018" in result
 
     def test_creation_year_max(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"creation_year_max": 2025})
         assert "Annee creation max: 2025" in result
 
     def test_naf_codes(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"naf_codes": ["6201Z", "6202A"]})
         assert "Codes NAF: 6201Z, 6202A" in result
 
     def test_exclude_domains(self):
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"exclude_domains": ["linkedin.com", "facebook.com"]})
         assert "Domaines exclus: linkedin.com, facebook.com" in result
 
     def test_empty_criteria(self):
-        """Un dict vide retourne le message par defaut."""
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({})
         assert "Aucun critere specifique" in result
 
     def test_all_criteria(self):
-        """Tous les criteres sont formates."""
+        from wakastart_leads.main import format_search_criteria
+
         criteria = {
             "keywords": ["SaaS sante"],
             "sector": "sante",
@@ -188,13 +217,15 @@ class TestFormatSearchCriteria:
         assert "Domaines exclus:" in result
 
     def test_ignores_none_values(self):
-        """Les valeurs None sont ignorees."""
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"sector": None, "keywords": ["SaaS"]})
         assert "Secteur" not in result
         assert "Mots-cles: SaaS" in result
 
     def test_ignores_empty_lists(self):
-        """Les listes vides sont ignorees."""
+        from wakastart_leads.main import format_search_criteria
+
         result = format_search_criteria({"keywords": [], "sector": "sante"})
         assert "Mots-cles" not in result
         assert "Secteur: sante" in result
@@ -216,6 +247,8 @@ class TestPostProcessSearchResults:
 
     def test_parses_valid_json(self, tmp_path, monkeypatch):
         """Parse correctement un JSON array valide."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com", "https://test.fr"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -227,6 +260,8 @@ class TestPostProcessSearchResults:
 
     def test_cleans_markdown_fences(self, tmp_path, monkeypatch):
         """Nettoie les code fences markdown."""
+        from wakastart_leads.main import post_process_search_results
+
         content = '```json\n["https://example.com"]\n```'
         self._write_raw(tmp_path, content)
 
@@ -238,6 +273,8 @@ class TestPostProcessSearchResults:
 
     def test_normalizes_urls_adds_https(self, tmp_path, monkeypatch):
         """Ajoute https:// aux URLs sans protocole."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["example.com", "test.fr"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -249,6 +286,8 @@ class TestPostProcessSearchResults:
 
     def test_deduplicates_http_vs_https(self, tmp_path, monkeypatch):
         """Deduplique http et https du meme domaine."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com", "http://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -260,6 +299,8 @@ class TestPostProcessSearchResults:
 
     def test_deduplicates_www(self, tmp_path, monkeypatch):
         """Deduplique www et non-www."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://www.example.com", "https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -271,6 +312,8 @@ class TestPostProcessSearchResults:
 
     def test_deduplicates_trailing_slash(self, tmp_path, monkeypatch):
         """Deduplique URLs avec et sans trailing slash."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com/", "https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -282,6 +325,8 @@ class TestPostProcessSearchResults:
 
     def test_filters_empty_strings(self, tmp_path, monkeypatch):
         """Filtre les chaines vides."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com", "", "  ", "https://test.fr"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -293,6 +338,8 @@ class TestPostProcessSearchResults:
 
     def test_custom_output_path(self, tmp_path, monkeypatch):
         """Ecrit dans le fichier de sortie specifie."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
         output_path = str(tmp_path / "output" / "custom.json")
@@ -307,6 +354,8 @@ class TestPostProcessSearchResults:
 
     def test_generates_timestamped_filename(self, tmp_path, monkeypatch):
         """Genere un nom de fichier avec timestamp quand aucun output n'est specifie."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -319,6 +368,8 @@ class TestPostProcessSearchResults:
 
     def test_removes_raw_file(self, tmp_path, monkeypatch):
         """Supprime le fichier brut apres traitement."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -332,6 +383,8 @@ class TestPostProcessSearchResults:
 
     def test_handles_missing_raw_file(self, tmp_path, monkeypatch):
         """Retourne une liste vide si le fichier brut n'existe pas."""
+        from wakastart_leads.main import post_process_search_results
+
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
         result = post_process_search_results(
             final_output_path=str(tmp_path / "output" / "result.json"),
@@ -340,6 +393,8 @@ class TestPostProcessSearchResults:
 
     def test_handles_empty_raw_file(self, tmp_path, monkeypatch):
         """Retourne une liste vide si le fichier brut est vide."""
+        from wakastart_leads.main import post_process_search_results
+
         self._write_raw(tmp_path, "")
 
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
@@ -350,6 +405,8 @@ class TestPostProcessSearchResults:
 
     def test_handles_invalid_json(self, tmp_path, monkeypatch):
         """Retourne une liste vide si le JSON est invalide."""
+        from wakastart_leads.main import post_process_search_results
+
         self._write_raw(tmp_path, "not json at all")
 
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
@@ -360,6 +417,8 @@ class TestPostProcessSearchResults:
 
     def test_handles_non_array_json(self, tmp_path, monkeypatch):
         """Retourne une liste vide si le JSON n'est pas un array."""
+        from wakastart_leads.main import post_process_search_results
+
         self._write_raw(tmp_path, '{"key": "value"}')
 
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
@@ -370,6 +429,8 @@ class TestPostProcessSearchResults:
 
     def test_output_json_format_matches_liste_json(self, tmp_path, monkeypatch):
         """Le format de sortie est identique a liste.json (Array<string>)."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com", "https://test.fr"]
         self._write_raw(tmp_path, json.dumps(urls))
         output_path = str(tmp_path / "output" / "result.json")
@@ -385,6 +446,8 @@ class TestPostProcessSearchResults:
 
     def test_skips_non_string_entries(self, tmp_path, monkeypatch):
         """Ignore les entrees non-string dans le JSON array."""
+        from wakastart_leads.main import post_process_search_results
+
         self._write_raw(tmp_path, '["https://example.com", 42, null, true]')
 
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
@@ -395,6 +458,8 @@ class TestPostProcessSearchResults:
 
     def test_preserves_url_order(self, tmp_path, monkeypatch):
         """Preserve l'ordre des URLs (Oui avant Probable dans la sortie de l'agent)."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://first.com", "https://second.fr", "https://third.io"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -406,6 +471,8 @@ class TestPostProcessSearchResults:
 
     def test_empty_after_markdown_cleanup(self, tmp_path, monkeypatch, capsys):
         """Un fichier brut ne contenant que des code fences retourne une liste vide."""
+        from wakastart_leads.main import post_process_search_results
+
         self._write_raw(tmp_path, "```json\n```")
 
         monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
@@ -419,6 +486,8 @@ class TestPostProcessSearchResults:
 
     def test_oserror_on_raw_delete(self, tmp_path, monkeypatch):
         """Un OSError lors de la suppression du fichier brut ne crash pas."""
+        from wakastart_leads.main import post_process_search_results
+
         urls = ["https://example.com"]
         self._write_raw(tmp_path, json.dumps(urls))
 
@@ -428,44 +497,3 @@ class TestPostProcessSearchResults:
                 final_output_path=str(tmp_path / "output" / "result.json"),
             )
         assert result == ["https://example.com"]
-
-
-# ===========================================================================
-# Tests de la fonction search()
-# ===========================================================================
-
-
-class TestSearchFunction:
-    """Tests pour la fonction search() du CLI."""
-
-    def test_search_calls_crew_and_postprocess(self, tmp_path, monkeypatch):
-        """search() charge les criteres, lance le crew, et post-process les resultats."""
-        from company_url_analysis_automation.main import search
-
-        monkeypatch.setattr(main_module, "__file__", _fake_file_path(tmp_path))
-        monkeypatch.setattr("sys.argv", ["main.py", "search"])
-
-        # Creer le fichier de criteres
-        criteria = {"keywords": ["SaaS"], "max_results": 10}
-        criteria_file = tmp_path / "search_criteria.json"
-        criteria_file.write_text(json.dumps(criteria), encoding="utf-8")
-
-        # Creer le log dir
-        log_dir = tmp_path / "output" / "logs" / "search"
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        mock_crew_obj = MagicMock()
-        mock_search_instance = MagicMock()
-        mock_search_instance.crew.return_value = mock_crew_obj
-
-        with (
-            patch(
-                "company_url_analysis_automation.main.SearchCrew",
-                return_value=mock_search_instance,
-            ),
-            patch("company_url_analysis_automation.main.post_process_search_results") as mock_pp,
-        ):
-            search()
-
-        mock_crew_obj.kickoff.assert_called_once()
-        mock_pp.assert_called_once()

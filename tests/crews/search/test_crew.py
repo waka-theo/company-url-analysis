@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-SM = "company_url_analysis_automation.search_crew"
+SM = "wakastart_leads.crews.search.crew"
 
 _AGENT_CFG = {"role": "test", "goal": "test", "backstory": "test"}
 _TASK_CFG = {"description": "test", "expected_output": "test"}
@@ -32,7 +32,7 @@ def _mock_search_constructors():
 def search_crew_instance():
     from crewai.project.crew_base import CrewBaseMeta
 
-    from company_url_analysis_automation.search_crew import SearchCrew
+    from wakastart_leads.crews.search.crew import SearchCrew
 
     with patch.object(CrewBaseMeta, "_initialize_crew_instance"):
         instance = SearchCrew()
@@ -56,13 +56,13 @@ class TestSearchCrewImport:
 
     def test_import_search_crew(self):
         """Le module search_crew s'importe sans erreur."""
-        from company_url_analysis_automation.search_crew import SearchCrew
+        from wakastart_leads.crews.search.crew import SearchCrew
 
         assert SearchCrew is not None
 
     def test_search_crew_is_class(self):
         """SearchCrew est une classe."""
-        from company_url_analysis_automation.search_crew import SearchCrew
+        from wakastart_leads.crews.search.crew import SearchCrew
 
         assert isinstance(SearchCrew, type)
 
@@ -72,13 +72,13 @@ class TestSearchCrewConfig:
 
     def test_has_agent_method(self):
         """SearchCrew a une methode saas_discovery_scout."""
-        from company_url_analysis_automation.search_crew import SearchCrew
+        from wakastart_leads.crews.search.crew import SearchCrew
 
         assert hasattr(SearchCrew, "saas_discovery_scout")
 
     def test_has_task_methods(self):
         """SearchCrew a les 3 methodes de taches."""
-        from company_url_analysis_automation.search_crew import SearchCrew
+        from wakastart_leads.crews.search.crew import SearchCrew
 
         assert hasattr(SearchCrew, "search_web_discovery")
         assert hasattr(SearchCrew, "search_pappers_validation")
@@ -86,7 +86,7 @@ class TestSearchCrewConfig:
 
     def test_has_crew_method(self):
         """SearchCrew a une methode crew."""
-        from company_url_analysis_automation.search_crew import SearchCrew
+        from wakastart_leads.crews.search.crew import SearchCrew
 
         assert hasattr(SearchCrew, "crew")
 

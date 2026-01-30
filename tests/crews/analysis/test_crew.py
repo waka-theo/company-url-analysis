@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from crewai.project.crew_base import CrewBaseMeta
 
-M = "company_url_analysis_automation.crew"
+M = "wakastart_leads.crews.analysis.crew"
 
 # Config minimale suffisante pour que les methodes Agent/Task/Crew ne crashent pas
 _AGENT_CFG = {"role": "test", "goal": "test", "backstory": "test"}
@@ -33,10 +33,10 @@ TASKS = [
 @pytest.fixture()
 def crew_instance():
     """Cree une instance en bypassant l'init de CrewBaseMeta."""
-    from company_url_analysis_automation.crew import CompanyUrlAnalysisAutomationCrew
+    from wakastart_leads.crews.analysis.crew import AnalysisCrew
 
     with patch.object(CrewBaseMeta, "_initialize_crew_instance"):
-        instance = CompanyUrlAnalysisAutomationCrew()
+        instance = AnalysisCrew()
 
     instance.agents_config = {name: dict(_AGENT_CFG) for name in AGENTS}
     instance.tasks_config = {name: dict(_TASK_CFG) for name in TASKS}

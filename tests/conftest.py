@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from company_url_analysis_automation.tools.gamma_tool import GammaCreateTool
-from company_url_analysis_automation.tools.kaspr_tool import KasprEnrichTool
-from company_url_analysis_automation.tools.pappers_tool import PappersSearchTool
+from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
+from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
+from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
 
 # ---------------------------------------------------------------------------
