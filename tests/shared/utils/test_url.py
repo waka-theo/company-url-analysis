@@ -2,7 +2,7 @@
 
 import pytest
 
-from wakastart_leads.shared.utils.url import normalize_url
+from wakastart_leads.shared.utils.url_utils import normalize_url
 
 
 # ===========================================================================

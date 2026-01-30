@@ -94,7 +94,7 @@ class TestFormatContactInfo:
         result = kaspr_tool._format_contact_info(
             kaspr_empty_response, "Jean Dupont", "https://www.linkedin.com/in/jean-dupont"
         )
-        assert "Non trouve" in result
+        assert "Non trouvé" in result
 
     def test_only_personal_email(self, kaspr_tool):
         data = {
@@ -177,7 +177,7 @@ class TestKasprRun:
 
     def test_missing_api_key(self, kaspr_tool, clear_all_api_keys):
         result = kaspr_tool._run(self.VALID_LINKEDIN, self.VALID_NAME)
-        assert "KASPR_API_KEY non configuree" in result
+        assert "KASPR_API_KEY non configurée" in result
 
     def test_invalid_linkedin_url(self, kaspr_tool, mock_kaspr_api_key):
         with patch(self.PATCH_TARGET) as mock_post:
@@ -194,7 +194,7 @@ class TestKasprRun:
     def test_http_401(self, kaspr_tool, mock_kaspr_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(401, text="Unauthorized")):
             result = kaspr_tool._run(self.VALID_LINKEDIN, self.VALID_NAME)
-            assert "invalide ou expiree" in result
+            assert "invalide ou expirée" in result
 
     def test_http_402(self, kaspr_tool, mock_kaspr_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(402, text="Payment required")):
@@ -204,13 +204,13 @@ class TestKasprRun:
     def test_http_404(self, kaspr_tool, mock_kaspr_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(404)):
             result = kaspr_tool._run(self.VALID_LINKEDIN, self.VALID_NAME)
-            assert "Aucun contact trouve" in result
+            assert "Aucun contact trouvé" in result
             assert self.VALID_NAME in result
 
     def test_http_429(self, kaspr_tool, mock_kaspr_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(429)):
             result = kaspr_tool._run(self.VALID_LINKEDIN, self.VALID_NAME)
-            assert "Limite de requetes" in result
+            assert "Limite de requêtes" in result
 
     def test_http_500(self, kaspr_tool, mock_kaspr_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(500, text="Server error")):

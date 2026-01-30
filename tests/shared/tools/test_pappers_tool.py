@@ -31,7 +31,7 @@ class TestPappersRunDetection:
 
     def test_missing_api_key(self, pappers_tool, clear_all_api_keys):
         result = pappers_tool._run("WakaStellar")
-        assert "PAPPERS_API_KEY non configuree" in result
+        assert "PAPPERS_API_KEY non configurée" in result
 
     def test_detects_siren_9_digits(self, pappers_tool, mock_pappers_api_key, mock_response, pappers_company_detail):
         with patch(self.PATCH_TARGET, return_value=mock_response(200, pappers_company_detail)) as mock_get:
@@ -91,12 +91,12 @@ class TestPappersRunErrors:
     def test_http_401(self, pappers_tool, mock_pappers_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(401, text="Unauthorized")):
             result = pappers_tool._run("WakaStellar")
-            assert "invalide ou expiree" in result
+            assert "invalide ou expirée" in result
 
     def test_http_404(self, pappers_tool, mock_pappers_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(404)):
             result = pappers_tool._run("WakaStellar")
-            assert "Aucune entreprise trouvee" in result
+            assert "Aucune entreprise trouvée" in result
 
     def test_http_500(self, pappers_tool, mock_pappers_api_key, mock_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(500, text="Server error")):
@@ -147,7 +147,7 @@ class TestFormatCompanyDetails:
             "siege": {},
         }
         result = pappers_tool._format_company_details(data)
-        assert "Cessee" in result
+        assert "Cessée" in result
 
     def test_entreprise_active(self, pappers_tool):
         data = {
@@ -209,7 +209,7 @@ class TestFormatSearchResults:
 
     def test_no_results(self, pappers_tool):
         result = pappers_tool._format_search_results({}, "InexistantCorp")
-        assert "Aucune entreprise trouvee" in result
+        assert "Aucune entreprise trouvée" in result
 
     def test_max_5_results(self, pappers_tool):
         results = [
