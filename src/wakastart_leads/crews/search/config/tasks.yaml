@@ -1,0 +1,114 @@
+---
+search_web_discovery:
+  description: |-
+    Phase 1 - Decouverte Web via Serper
+
+    A partir des criteres de recherche fournis : {search_criteria}
+
+    1. Construire des requetes de recherche intelligentes en combinant les criteres :
+       - Mots-cles + zone geographique + secteur
+       - Variations semantiques (ex: "SaaS sante" + "healthtech" + "medtech")
+       - Requetes specifiques levees de fonds (ex: "startup {sector} levee fonds")
+       - Requetes offres d'emploi tech (ex: "dev fullstack {sector} France recrutement")
+       - Requetes annuaires tech (ex: "startup SaaS France {sector} liste")
+
+    2. Pour chaque requete, analyser les 10-20 premiers resultats :
+       - Extraire les URLs des sites d'entreprises (PAS les annuaires/aggregateurs)
+       - Noter les signaux SaaS detectes dans les snippets Google
+
+    3. Constituer une liste brute de candidats (URL + nom entreprise + signal detecte)
+
+    Objectif : identifier un maximum de {max_results} candidats potentiels.
+
+    IMPORTANT - Ne PAS inclure les URLs de :
+    - Reseaux sociaux (linkedin.com, twitter.com, facebook.com)
+    - Annuaires generiques (societe.com, infogreffe.fr, verif.com, pappers.fr)
+    - Sites d'actualites (lesechos.fr, maddyness.com, frenchweb.fr)
+    - Plateformes de financement (wellfound.com, dealroom.co, crunchbase.com)
+    Sauf si le domaine est le site officiel de l'entreprise recherchee.
+  expected_output: >
+    Liste brute de candidats avec pour chaque entree :
+    - URL du site web de l'entreprise
+    - Nom de l'entreprise (si identifie)
+    - Signal SaaS detecte (court resume)
+    - Source de decouverte (requete utilisee)
+
+    Format structure, un candidat par bloc.
+  agent: saas_discovery_scout
+
+search_pappers_validation:
+  description: |-
+    Phase 2 - Validation Legale via Pappers
+
+    Pour chaque candidat identifie en Phase 1 :
+
+    1. Rechercher l'entreprise sur Pappers pour obtenir :
+       - SIREN et date de creation
+       - Code NAF (pour confirmer le secteur)
+       - Statut (active ou cessee)
+       - Siege social (France ou etranger)
+
+    2. Appliquer les filtres des criteres de recherche :
+       - Si creation_year_min/max specifies dans les criteres : verifier la date de creation
+       - Si geographic_zone specifie : verifier le siege social
+       - Si naf_codes specifies : verifier le code NAF
+       - Exclure les entreprises cessees
+
+    3. Pour les entreprises non trouvees sur Pappers :
+       - Si le site est clairement une entreprise francaise, la garder avec mention "Non verifie Pappers"
+       - Si le site est etranger sans lien France evident, la marquer pour exclusion
+
+    IMPORTANT : Ne pas supprimer une entreprise uniquement parce qu'elle n'est pas sur Pappers.
+    Les entreprises etrangeres avec lien France sont acceptees.
+  expected_output: >
+    Liste validee avec pour chaque entreprise :
+    - URL du site web
+    - Nom de l'entreprise
+    - SIREN (si trouve)
+    - Date de creation (YYYY)
+    - Code NAF
+    - Nationalite (FR / INT avec lien FR / Code pays)
+    - Statut de validation (Valide / Non verifie Pappers / Exclue + raison)
+  agent: saas_discovery_scout
+  context:
+    - search_web_discovery
+
+search_saas_deep_scan:
+  description: |-
+    Phase 3 - Verification SaaS Approfondie & Compilation Finale
+
+    Pour chaque entreprise validee en Phase 2 (statut "Valide" ou "Non verifie Pappers") :
+
+    1. Scraper le site web de l'entreprise pour confirmer la composante SaaS :
+       - Chercher les pages "Produit", "Solution", "Tarifs", "Fonctionnalites"
+       - Detecter les indices de modele SaaS (abonnement, cloud, plateforme en ligne)
+       - Detecter le "SaaS cache" : mentions de plateforme client, portail, espace
+         membre, API, integration
+
+    2. Scoring rapide de pertinence SaaS (Oui / Probable / Non) :
+       - Oui : Page "Tarifs" avec abonnement, mentions explicites SaaS/Cloud
+       - Probable : Indices de plateforme, levee de fonds R&D, offres dev fullstack
+       - Non : Pure prestation de services, pas de composante tech identifiable
+
+    3. Nettoyage final :
+       - Supprimer les doublons (normaliser les URLs au meme format)
+       - Supprimer les entreprises avec scoring "Non"
+       - Normaliser toutes les URLs au format https://domaine.com (racine, sans trailing slash)
+       - Trier par pertinence SaaS (Oui en premier, puis Probable)
+
+    4. Compiler la liste finale au format JSON :
+       Sortir UNIQUEMENT un JSON array de strings (URLs), rien d'autre.
+       Exemple : ["https://entreprise1.com", "https://entreprise2.fr"]
+
+    Nombre maximum d'URLs dans la sortie finale : {max_results}
+  expected_output: |-
+    Un JSON array de strings contenant les URLs decouvertes.
+    Format exact :
+    ["https://url1.com", "https://url2.fr", "https://url3.com"]
+
+    Rien d'autre que le JSON array. Pas de texte avant ou apres.
+    Maximum {max_results} URLs.
+  agent: saas_discovery_scout
+  context:
+    - search_web_discovery
+    - search_pappers_validation
