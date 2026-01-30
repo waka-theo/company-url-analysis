@@ -1,0 +1,83 @@
+---
+enrich_company_data:
+  description: >
+    Pour CHAQUE URL d'entreprise fournie dans la liste, tu dois analyser et produire :
+
+    1. NATIONALITE (emoji drapeau) :
+       Identifier le pays du siege social principal.
+       - Si France -> utiliser le drapeau francais
+       - Si USA -> utiliser le drapeau americain
+       - Si UK -> utiliser le drapeau britannique
+       - Si Allemagne -> utiliser le drapeau allemand
+       - Si autre pays europeen -> utiliser le drapeau du pays
+       - Si siege hors France mais presence forte en France -> indiquer "International"
+       - Si impossible a determiner -> indiquer "Inconnu"
+
+    2. SOLUTION SAAS (description courte, MAX 20 MOTS) :
+       Format obligatoire : "[Secteur]. [Description courte de la solution]"
+       Exemples :
+       - "MedTech. Solution d'IA pour detecter les AVC via analyse video en phase pre-hospitaliere."
+       - "FinTech. Plateforme de gestion de tresorerie pour PME avec previsions IA."
+       - "HRTech. Logiciel de recrutement collaboratif avec scoring automatise des candidats."
+       - "LegalTech. Outil de redaction automatique de contrats avec clause library."
+       Si pas de SaaS identifiable : "Non SaaS. [Description activite principale]"
+
+    3. PERTINENCE (score 0-100%, format "XX %") :
+       Appliquer strictement la matrice WakaStart :
+       - 90-100% : Sante/HealthTech (HDS obligatoire) OU Finance avec besoin conformite critique
+       - 80-89% : B2B grands comptes + besoin ISO 27001/NIS2
+       - 70-79% : StartUp tech avec levee recente + besoin acceleration
+       - 60-69% : Stack legacy (PHP/Python/Java vieillissant) + dette technique evidente
+       - 50-59% : SaaS B2B standard avec besoin multi-tenant ou marque blanche
+       - 40-49% : SaaS etabli mais pas de besoin WakaStart evident
+       - 30-39% : Entreprise tech mais hors cible (agence, conseil, pure player B2C)
+       - <30% : Pas de composante SaaS ou hors perimetre (association, media, e-commerce pur)
+
+    4. EXPLICATION (justification en 1-2 phrases) :
+       Format obligatoire : "[Qualification]. [Raison principale]. [Module WakaStart si pertinent]"
+       Exemples :
+       - "Cible Parfaite (HealthTech/AI). Dispositif medical logiciel traitant donnees sante vitales. WakaHds obligatoire pour conformite HDS."
+       - "Cible Premium (FinTech B2B). Plateforme pour grands comptes bancaires, NIS2 obligatoire 2026. Migration Pack + ISO 27001 ready."
+       - "Opportunite (ScaleUp tech). Levee Serie A 2024, besoin acceleration dev. Developpement rapide WakaStart 10x."
+       - "Potentiel Moyen (SaaS B2B). Solution etablie sans dette technique evidente. Multi-tenant natif si expansion reseau."
+       - "Hors Cible. Pure agence digitale sans produit SaaS propre."
+
+    LISTE DES URLS A ANALYSER :
+    {urls}
+
+    IMPORTANT :
+    - Analyser CHAQUE URL de la liste, meme si certaines semblent similaires
+    - TOUJOURS utiliser ScrapeWebsiteTool pour visiter directement chaque URL et lire son contenu
+    - Utiliser SerperDevTool en complement pour rechercher des informations additionnelles (siege social, levees de fonds, etc.)
+    - Ne marquer "Site inaccessible" que si ScrapeWebsiteTool echoue reellement a charger la page
+    - Ne JAMAIS inventer d'informations. Si incertain, utiliser des formulations prudentes.
+    - Le score doit etre coherent avec l'explication
+
+  expected_output: >
+    Un JSON array VALIDE contenant un objet pour CHAQUE entreprise analysee.
+    Format exact attendu (respecter les noms de cles) :
+
+    [
+      {
+        "url": "domaine.com",
+        "nationalite": "[emoji drapeau ou texte]",
+        "solution_saas": "[Secteur]. [Description max 20 mots]",
+        "pertinence": "XX %",
+        "explication": "[Qualification]. [Raison]. [Module WakaStart si >60%]"
+      },
+      {
+        "url": "autre-domaine.fr",
+        "nationalite": "[emoji ou texte]",
+        "solution_saas": "[Description]",
+        "pertinence": "XX %",
+        "explication": "[Justification]"
+      }
+    ]
+
+    REGLES JSON :
+    - Le JSON doit etre VALIDE et parseable
+    - Utiliser des guillemets doubles pour les cles et valeurs string
+    - Echapper les guillemets internes avec \"
+    - Ne pas ajouter de commentaires dans le JSON
+    - Ne pas entourer le JSON de code fences markdown
+  agent: saas_enrichment_analyst
