@@ -1,8 +1,10 @@
 .env
 __pycache__/
 .DS_Store
-docs/
-!docs/plans/
+docs/business/
+docs/*.pdf
+docs/*.txt
+docs/*.yaml
 .serena/
 .venv/
 output/
