@@ -42,6 +42,11 @@ crewai run
 python main.py search
 python main.py search --criteria path/to/file.json --output output/urls.json
 
+# Lancer l'enrichissement de donnees
+python main.py enrich
+python main.py enrich --test
+python main.py enrich --input path/to/file.csv --batch-size 10
+
 # Entrainement
 crewai train <n_iterations> <output_filename>
 
@@ -51,7 +56,7 @@ crewai replay <task_id>
 
 ## Architecture
 
-Le projet comporte **2 crews** independants.
+Le projet comporte **3 crews** independants.
 
 ### Crew 1 : Analyse d'entreprises (6 taches sequentielles)
 
@@ -85,6 +90,23 @@ Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON 
 - **Input** : `search_criteria.json`
 - **Output** : `output/search_results_raw.json`
 
+### Crew 3 : Enrichissement de donnees (`EnrichmentCrew`)
+
+```
+CSV existant --> Extraction URLs --> Enrichissement batch --> CSV enrichi
+```
+
+- **Agent** : Expert en Analyse SaaS (`saas_enrichment_analyst`)
+- **Modele** : GPT-4o (temp 0.3)
+- **Input** : CSV avec colonne "Site Internet"
+- **Output** : CSV enrichi + `output/enrichment_accumulated.json`
+
+Colonnes ajoutees :
+- Nationalite (emoji drapeau)
+- Solution SaaS (secteur + description max 20 mots)
+- Pertinence (score 0-100%)
+- Explication (justification WakaStart)
+
 ### Tools
 
 - **ScrapeWebsiteTool** : Scraping de contenu web
@@ -99,10 +121,13 @@ Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON 
 src/company_url_analysis_automation/
   crew.py              # Definitions agents, taches, crew d'analyse
   search_crew.py       # Definitions du crew de recherche (SearchCrew)
+  enrichment_crew.py   # Definitions du crew d'enrichissement (EnrichmentCrew)
   main.py              # Entry point + post-processing CSV et JSON
   config/
     agents.yaml        # Roles et backstories des 7 agents
     tasks.yaml         # Descriptions des 9 taches
+    enrichment_agents.yaml  # Agent saas_enrichment_analyst
+    enrichment_tasks.yaml   # Tache + matrice de scoring WakaStart
   tools/
     __init__.py
     kaspr_tool.py      # API Kaspr (enrichissement contacts)
@@ -143,7 +168,7 @@ Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 
 ## Tests
 
-179 tests unitaires avec pytest couvrant les 2 crews (analyse + recherche), les 3 tools custom (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV/JSON et la normalisation d'URLs.
+179 tests unitaires avec pytest couvrant les 3 crews (analyse, recherche, enrichissement), les 3 tools custom (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV/JSON et la normalisation d'URLs.
 
 ```bash
 pytest       # Lancer tous les tests

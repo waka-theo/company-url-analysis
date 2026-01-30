@@ -41,6 +41,10 @@ Commandes alternatives via `main.py` :
 python main.py run           # Lance le crew d'analyse
 python main.py search        # Lance le crew de recherche d'URLs
 python main.py search --criteria path/to/file.json --output output/urls.json
+python main.py enrich        # Lance l'enrichissement (batch)
+python main.py enrich --test # Mode test (20 premieres URLs)
+python main.py enrich --input path/to/file.csv --output path/to/output.csv
+python main.py enrich --batch-size 10
 python main.py train N FILE  # Entrainement (N iterations, FILE output)
 python main.py replay TASKID # Replay tache specifique
 python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
@@ -48,7 +52,7 @@ python main.py test N MODEL  # Test crew (N iterations, OpenAI MODEL)
 
 ## Architecture
 
-Le projet comporte **2 crews** independants :
+Le projet comporte **3 crews** independants :
 
 ### Crew 1 : Analyse d'entreprises (6 taches sequentielles)
 
@@ -75,12 +79,40 @@ Le projet comporte **2 crews** independants :
 - **Output** : `output/search_results_raw.json`
 - **Input** : `search_criteria.json` (criteres de recherche)
 
+### Crew 3 : Enrichissement de donnees (`EnrichmentCrew`)
+
+Enrichit rapidement des CSV d'entreprises existantes avec 4 colonnes de qualification WakaStart.
+
+| Aspect | Detail |
+|--------|--------|
+| **Agent** | `saas_enrichment_analyst` - Expert en Analyse SaaS et Qualification WakaStart |
+| **Modele** | `openai/gpt-4o` (temp 0.3), max 30 iterations |
+| **Tools** | SerperDevTool, ScrapeWebsiteTool |
+| **Input** | CSV avec colonne "Site Internet" |
+| **Output** | CSV enrichi + `output/enrichment_accumulated.json` |
+
+Colonnes enrichies :
+- **Nationalite** : Emoji drapeau du siege social
+- **Solution SaaS** : Secteur + description (max 20 mots)
+- **Pertinence** : Score 0-100% selon matrice WakaStart
+- **Explication** : Justification avec qualification et module WakaStart recommande
+
+Workflow batch avec reprise automatique :
+1. Chargement CSV et extraction URLs colonne "Site Internet"
+2. Reprise via `enrichment_accumulated.json` (URLs deja traitees)
+3. Traitement par lots de 20 URLs (configurable via `--batch-size`)
+4. Sauvegarde JSON intermediaire apres chaque batch
+5. Merge final et generation CSV enrichi avec timestamp
+
 ### Key Files
 
 - `src/company_url_analysis_automation/crew.py` - Definitions agents et taches du crew d'analyse (`@agent`, `@task`, `@crew`)
 - `src/company_url_analysis_automation/search_crew.py` - Definitions du crew de recherche (`SearchCrew`)
+- `src/company_url_analysis_automation/enrichment_crew.py` - Definitions du crew d'enrichissement (`EnrichmentCrew`)
 - `src/company_url_analysis_automation/config/agents.yaml` - Roles, goals, backstories des 7 agents
 - `src/company_url_analysis_automation/config/tasks.yaml` - Descriptions des 9 taches et outputs attendus
+- `src/company_url_analysis_automation/config/enrichment_agents.yaml` - Agent saas_enrichment_analyst (role, goal, matrice scoring)
+- `src/company_url_analysis_automation/config/enrichment_tasks.yaml` - Tache enrich_company_data (format JSON, colonnes attendues)
 - `src/company_url_analysis_automation/main.py` - Entry point + post-processing CSV et JSON
 - `src/company_url_analysis_automation/tools/kaspr_tool.py` - Enrichissement contacts via API Kaspr (email, telephone)
 - `src/company_url_analysis_automation/tools/pappers_tool.py` - Donnees legales entreprises via API Pappers
@@ -97,6 +129,7 @@ Le projet comporte **2 crews** independants :
 | `lead_generation_expert` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool, KasprEnrichTool |
 | `data_compiler_and_reporter` | Aucun (compilation pure) |
 | `saas_discovery_scout` | SerperDevTool, ScrapeWebsiteTool, PappersSearchTool |
+| `saas_enrichment_analyst` | SerperDevTool, ScrapeWebsiteTool |
 
 ### Input Format
 
@@ -117,6 +150,11 @@ Le projet comporte **2 crews** independants :
 }
 ```
 Cles optionnelles : `keywords` (str ou list), `sector`, `geographic_zone`, `company_size`, `creation_year_min`, `creation_year_max`, `naf_codes` (list), `exclude_domains` (list), `max_results` (int, defaut 50)
+
+**Crew d'enrichissement** : CSV avec colonne obligatoire `Site Internet`
+- Fichier par defaut : `Datas entreprises Tom - Affinage n°6.csv`
+- Autres colonnes conservees dans le CSV de sortie
+- Options : `--input`, `--output`, `--batch-size`, `--test`
 
 ## Output CSV (23 colonnes)
 
@@ -164,11 +202,24 @@ Apres l'execution du SearchCrew, `post_process_search_results()` applique :
 5. **Ecriture** : JSON final timestampe (`output/search_urls_YYYYMMDD_HHMMSS.json`)
 6. **Nettoyage** : Suppression du fichier brut temporaire
 
+### Post-processing Enrichissement (crew d'enrichissement)
+
+Apres chaque batch de l'EnrichmentCrew, le workflow applique :
+
+1. **Chargement CSV** : Lecture avec extraction URLs colonne "Site Internet"
+2. **Reprise** : Chargement `enrichment_accumulated.json` (URLs deja traitees)
+3. **Batches** : Traitement par lots de 20 URLs (configurable via `--batch-size`)
+4. **Parsing** : Nettoyage markdown + extraction JSON array des resultats
+5. **Accumulation** : Sauvegarde JSON apres chaque batch (reprise automatique)
+6. **Merge** : Mise a jour CSV par URL normalisee (4 colonnes ajoutees)
+7. **Sauvegarde** : CSV enrichi avec timestamp + encodage UTF-8 BOM
+
 ### Logging
 
 Chaque execution genere un fichier de log structure dans `output/logs/{workflow}/` :
 - `output/logs/run/run_YYYYMMDD_HHMMSS.json` pour le crew d'analyse
 - `output/logs/search/search_YYYYMMDD_HHMMSS.json` pour le crew de recherche
+- `output/logs/enrich/enrich_YYYYMMDD_HHMMSS.json` pour le crew d'enrichissement
 
 ## Scoring WakaStart (Pertinence)
 

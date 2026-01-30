@@ -8,6 +8,7 @@ import sys
 from datetime import datetime
 
 from company_url_analysis_automation.crew import CompanyUrlAnalysisAutomationCrew
+from company_url_analysis_automation.enrichment_crew import EnrichmentCrew
 from company_url_analysis_automation.search_crew import SearchCrew
 
 # This main file is intended to be a way for your to run your
@@ -21,8 +22,10 @@ EXPECTED_COLUMNS = 23
 URL_COLUMN_INDEX = 1  # Colonne "Site Web" (0-based)
 SEARCH_CRITERIA_DEFAULT = "search_criteria.json"
 SEARCH_RAW_OUTPUT = "output/search_results_raw.json"
+ENRICHMENT_RAW_OUTPUT = "output/enrichment_results.json"
 
 SearchCriteria = dict[str, str | int | list[str]]
+EnrichmentResult = dict[str, str]
 
 
 LOG_DIR = "output/logs"
@@ -380,6 +383,373 @@ def post_process_search_results(
     return urls_final
 
 
+def load_enrichment_csv(filepath: str) -> tuple[list[str], list[dict[str, str]]]:
+    """
+    Charge le CSV d'enrichissement et retourne (header, rows).
+    Chaque row est un dict avec les noms de colonnes comme cles.
+    """
+    project_root = _get_project_root()
+    full_path = filepath if os.path.isabs(filepath) else os.path.join(project_root, filepath)
+
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"Fichier CSV non trouve: {full_path}")
+
+    with open(full_path, encoding="utf-8-sig") as f:
+        raw_content = f.read()
+
+    if not raw_content.strip():
+        raise ValueError("Fichier CSV vide")
+
+    reader = csv.DictReader(io.StringIO(raw_content))
+    header = reader.fieldnames or []
+    rows = list(reader)
+
+    return list(header), rows
+
+
+def extract_urls_from_enrichment_csv(rows: list[dict[str, str]]) -> list[str]:
+    """
+    Extrait les URLs de la colonne 'Site Internet' du CSV.
+    Normalise les URLs (ajoute https:// si absent, nettoie les espaces).
+    """
+    urls: list[str] = []
+
+    for row in rows:
+        url = row.get("Site Internet", "").strip()
+        if not url:
+            continue
+
+        # Ignorer les entrees qui ne sont pas des URLs (ex: "Education Lily Media")
+        if " " in url and not url.startswith("http"):
+            continue
+
+        # Normaliser : ajouter https:// si absent
+        if not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+
+        urls.append(url)
+
+    return urls
+
+
+def parse_enrichment_output(raw_output: str) -> list[EnrichmentResult]:
+    """
+    Parse le resultat JSON d'enrichissement depuis une chaine.
+    Nettoie les artefacts markdown si presents.
+    """
+    if not raw_output:
+        print("[WARNING] Output vide")
+        return []
+
+    raw_content = raw_output.strip()
+
+    # Nettoyage markdown (code fences) - ligne par ligne
+    lines = raw_content.splitlines()
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Ignorer les lignes de code fence (```json, ```, etc.)
+        if stripped.startswith("```"):
+            continue
+        cleaned_lines.append(line)
+    raw_content = "\n".join(cleaned_lines).strip()
+
+    # Essayer d'extraire le JSON array avec regex si necessaire
+    if not raw_content.startswith("["):
+        import re
+        # Chercher un JSON array dans le contenu
+        match = re.search(r'\[\s*\{.*\}\s*\]', raw_content, re.DOTALL)
+        if match:
+            raw_content = match.group(0)
+
+    if not raw_content:
+        print("[WARNING] Output vide apres nettoyage markdown")
+        return []
+
+    # Parse JSON
+    try:
+        results: list[EnrichmentResult] = json.loads(raw_content)
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON invalide dans l'output: {e}")
+        print(f"[DEBUG] Contenu (500 premiers chars): {raw_content[:500]}")
+        return []
+
+    if not isinstance(results, list):
+        print("[ERROR] L'output n'est pas un JSON array")
+        return []
+
+    print(f"[DEBUG] {len(results)} resultat(s) parses avec succes")
+    return results
+
+
+def parse_enrichment_results(raw_output_path: str) -> list[EnrichmentResult]:
+    """
+    Parse le fichier JSON de resultats d'enrichissement.
+    Nettoie les artefacts markdown si presents.
+    """
+    project_root = _get_project_root()
+    raw_path = os.path.join(project_root, raw_output_path)
+
+    if not os.path.exists(raw_path):
+        print(f"[WARNING] Fichier resultats non trouve: {raw_path}")
+        return []
+
+    with open(raw_path, encoding="utf-8") as f:
+        raw_content = f.read().strip()
+
+    if not raw_content:
+        print("[WARNING] Fichier resultats vide")
+        return []
+
+    # Nettoyage markdown (code fences) - plus robuste
+    # Supprimer les lignes qui contiennent uniquement des code fences
+    lines = raw_content.splitlines()
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Ignorer les lignes de code fence (```json, ```, etc.)
+        if stripped.startswith("```"):
+            continue
+        cleaned_lines.append(line)
+    raw_content = "\n".join(cleaned_lines).strip()
+
+    # Essayer d'extraire le JSON array avec regex si necessaire
+    if not raw_content.startswith("["):
+        import re
+        # Chercher un JSON array dans le contenu
+        match = re.search(r'\[\s*\{.*?\}\s*\]', raw_content, re.DOTALL)
+        if match:
+            raw_content = match.group(0)
+
+    if not raw_content:
+        print("[WARNING] Fichier resultats vide apres nettoyage markdown")
+        return []
+
+    # Parse JSON
+    try:
+        results: list[EnrichmentResult] = json.loads(raw_content)
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON invalide dans les resultats: {e}")
+        print(f"[DEBUG] Contenu (500 premiers chars): {raw_content[:500]}")
+        return []
+
+    if not isinstance(results, list):
+        print("[ERROR] Les resultats ne sont pas un JSON array")
+        return []
+
+    print(f"[DEBUG] {len(results)} resultat(s) parses avec succes")
+    return results
+
+
+def update_csv_with_enrichment(
+    rows: list[dict[str, str]],
+    enrichments: list[EnrichmentResult],
+) -> list[dict[str, str]]:
+    """
+    Met a jour les lignes du CSV avec les donnees d'enrichissement.
+    Match par URL normalisee.
+    """
+    # Creer un index des enrichissements par URL normalisee
+    enrichment_index: dict[str, EnrichmentResult] = {}
+    for enrichment in enrichments:
+        url = enrichment.get("url", "")
+        if url:
+            normalized = normalize_url(url)
+            enrichment_index[normalized] = enrichment
+
+    # Mettre a jour chaque ligne
+    updated_count = 0
+    for row in rows:
+        url = row.get("Site Internet", "").strip()
+        if not url:
+            continue
+
+        # Normaliser l'URL pour le match
+        if not url.startswith(("http://", "https://")):
+            url_for_match = f"https://{url}"
+        else:
+            url_for_match = url
+
+        normalized = normalize_url(url_for_match)
+
+        if normalized in enrichment_index:
+            enrichment = enrichment_index[normalized]
+            row["Nationalité"] = enrichment.get("nationalite", "")
+            row["Solution Saas"] = enrichment.get("solution_saas", "")
+            row["Pertinance"] = enrichment.get("pertinence", "")
+            row["Explication"] = enrichment.get("explication", "")
+            updated_count += 1
+
+    print(f"[INFO] {updated_count} ligne(s) enrichie(s)")
+    return rows
+
+
+def save_enriched_csv(
+    header: list[str],
+    rows: list[dict[str, str]],
+    output_path: str,
+) -> None:
+    """
+    Sauvegarde le CSV enrichi avec encodage UTF-8 BOM pour Excel.
+    """
+    project_root = _get_project_root()
+    full_path = output_path if os.path.isabs(output_path) else os.path.join(project_root, output_path)
+
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+    with open(full_path, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=header, quoting=csv.QUOTE_MINIMAL)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"[OK] CSV enrichi sauvegarde: {full_path}")
+
+
+def enrich():
+    """
+    Enrich company CSV with nationality, SaaS solution, relevance score and explanation.
+    Usage:
+      python main.py enrich
+      python main.py enrich --test
+      python main.py enrich --input path/to/file.csv --output path/to/output.csv
+      python main.py enrich --batch-size 10
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Enrich company CSV with WakaStart analysis")
+    parser.add_argument(
+        "--input", "-i",
+        type=str,
+        default="Datas entreprises Tom - Affinage n°6.csv",
+        help="Input CSV file path",
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        default=None,
+        help="Output CSV file path (default: input file with _enriched suffix)",
+    )
+    parser.add_argument(
+        "--batch-size", "-b",
+        type=int,
+        default=20,
+        help="Number of URLs to process per batch (default: 20)",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Test mode: process only first 20 URLs",
+    )
+
+    args, _ = parser.parse_known_args(sys.argv[2:] if len(sys.argv) > 2 else [])
+
+    # 1. Charger le CSV d'entree
+    print(f"[INFO] Chargement du CSV: {args.input}")
+    try:
+        header, rows = load_enrichment_csv(args.input)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"[ERROR] {e}")
+        sys.exit(1)
+
+    print(f"[INFO] {len(rows)} ligne(s) chargee(s)")
+
+    # 2. Extraire les URLs
+    all_urls = extract_urls_from_enrichment_csv(rows)
+    print(f"[INFO] {len(all_urls)} URL(s) a traiter")
+
+    # 3. Mode test : limiter a 20 URLs
+    if args.test:
+        all_urls = all_urls[:20]
+        print(f"[INFO] Mode test: traitement de {len(all_urls)} URL(s)")
+
+    if not all_urls:
+        print("[WARNING] Aucune URL a traiter")
+        sys.exit(0)
+
+    # 4. Charger les resultats accumules existants (pour reprise)
+    project_root = _get_project_root()
+    accumulated_file = os.path.join(project_root, "output", "enrichment_accumulated.json")
+    all_enrichments: list[EnrichmentResult] = []
+    processed_urls: set[str] = set()
+
+    if os.path.exists(accumulated_file):
+        try:
+            with open(accumulated_file, encoding="utf-8") as f:
+                all_enrichments = json.load(f)
+            # Extraire les URLs deja traitees
+            for enrichment in all_enrichments:
+                url = enrichment.get("url", "")
+                if url:
+                    processed_urls.add(normalize_url(url))
+            print(f"[INFO] {len(all_enrichments)} resultat(s) existant(s) charges")
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[WARNING] Impossible de charger les resultats existants: {e}")
+            all_enrichments = []
+
+    # Filtrer les URLs deja traitees
+    urls_to_process = [
+        url for url in all_urls
+        if normalize_url(url) not in processed_urls
+    ]
+    print(f"[INFO] {len(urls_to_process)} URL(s) restante(s) a traiter")
+
+    if not urls_to_process:
+        print("[INFO] Toutes les URLs ont deja ete traitees")
+    else:
+        # 5. Traiter par batches
+        batch_size = args.batch_size
+        total_batches = (len(urls_to_process) + batch_size - 1) // batch_size
+
+        for i in range(0, len(urls_to_process), batch_size):
+            batch = urls_to_process[i : i + batch_size]
+            batch_num = i // batch_size + 1
+
+            print(f"\n[INFO] === Batch {batch_num}/{total_batches} ({len(batch)} URL(s)) ===")
+
+            # Formater les URLs pour l'agent
+            urls_text = "\n".join(f"- {url}" for url in batch)
+            inputs = {"urls": urls_text}
+
+            # Executer le crew
+            enrichment_crew = EnrichmentCrew()
+            enrichment_crew.log_file = _setup_log_file("enrich")
+            print(f"[INFO] Logs: {enrichment_crew.log_file}")
+
+            crew_output = enrichment_crew.crew().kickoff(inputs=inputs)
+
+            # Parser les resultats de ce batch (directement depuis l'output du crew)
+            batch_results = parse_enrichment_output(crew_output.raw)
+            print(f"[INFO] Batch {batch_num}: {len(batch_results)} resultat(s)")
+
+            # Accumuler les resultats
+            all_enrichments.extend(batch_results)
+
+            # Sauvegarder les resultats accumules (pour reprise en cas d'interruption)
+            with open(accumulated_file, "w", encoding="utf-8") as f:
+                json.dump(all_enrichments, f, ensure_ascii=False, indent=2)
+            print(f"[INFO] Resultats sauvegardes: {len(all_enrichments)} total")
+
+    print(f"\n[INFO] Total enrichissements: {len(all_enrichments)}")
+
+    # 6. Mettre a jour le CSV
+    rows = update_csv_with_enrichment(rows, all_enrichments)
+
+    # 7. Sauvegarder le CSV enrichi
+    if args.output:
+        output_path = args.output
+    else:
+        # Generer un nom de fichier avec suffix _enriched
+        base, ext = os.path.splitext(args.input)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"output/{os.path.basename(base)}_enriched_{timestamp}{ext}"
+
+    save_enriched_csv(header, rows, output_path)
+
+    print(f"\n[OK] Enrichissement termine!")
+    print(f"[OK] Fichier: {output_path}")
+    print(f"[OK] Resultats JSON: {accumulated_file}")
+
+
 def search():
     """
     Search for SaaS company URLs based on criteria.
@@ -489,6 +859,8 @@ if __name__ == "__main__":
         run()
     elif command == "search":
         search()
+    elif command == "enrich":
+        enrich()
     elif command == "train":
         train()
     elif command == "replay":
@@ -497,5 +869,5 @@ if __name__ == "__main__":
         test()
     else:
         print(f"Unknown command: {command}")
-        print("Available commands: run, search, train, replay, test")
+        print("Available commands: run, search, enrich, train, replay, test")
         sys.exit(1)
