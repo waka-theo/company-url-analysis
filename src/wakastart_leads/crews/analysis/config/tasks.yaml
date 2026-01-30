@@ -1,0 +1,272 @@
+---
+extraction_and_macro_filtering:
+  description: |-
+    Traiter la liste d'URLs fournie dans {urls}. Pour chaque URL :
+
+    ACT 0 - Extraction & Ingestion :
+    1. Supprimer les doublons éventuels
+    2. Formater et normaliser les URLs
+
+    ACT 1 - Extraction & Filtrage Macro :
+    1. Vérifier que l'URL est accessible et valide
+    2. Scraper le contenu du site pour extraire le nom de l'entreprise
+    3. Confirmer le secteur d'activité (Édition logiciels, Conseil informatique, mais rester ouvert aux pivotages)
+    4. Critère "SaaS Caché" : Ne pas s'arrêter à la vitrine. Chercher des indices de développement interne :
+       - Offres d'emploi "Dev Fullstack" ou similaires
+       - Mention de "Plateforme client", "Portail adhérent", "Espace membre"
+       - Levées de fonds mentionnant "R&D", "tech", "plateforme"
+       - Page "Produit", "Solution", "Tarifs" suggérant un modèle SaaS
+    5. Noter les URLs non accessibles
+
+    Exemple de référence : France-Care.fr (Service de conciergerie -> Développement d'un CRM métier après levée de fonds)
+  expected_output: >
+    Une liste structurée pour chaque URL contenant :
+    - URL originale
+    - Statut de validation (valid/invalid)
+    - Nom de l'entreprise extrait
+    - Indices SaaS détectés (liste des signaux trouvés ou "Aucun indice SaaS" si rien détecté)
+    - Secteur d'activité apparent
+
+    Format clair indiquant les URLs traitées avec succès et celles avec problèmes.
+  agent: economic_intelligence_analyst
+origin_identification_and_saas_qualification:
+  description: |-
+    Pour chaque entreprise valide identifiée à l'étape précédente :
+
+    ACT 2 - Identification Origine & Ancrage :
+    1. Année de création : Identifier la date d'immatriculation principale.
+       Si pivot majeur (ex: agence devenue éditeur), noter l'année du pivot.
+    2. Nationalité :
+       - Si Siège social = France → FR
+       - Si Siège étranger mais présence tech/commerciale forte en France → INT (Lien FR)
+       - Sinon → Code pays (US, UK, DE, etc.)
+    3. Ne pas supprimer les entreprises sans ancrage français, mais les identifier clairement.
+
+    ACT 3 - Qualification de la Solution SaaS :
+    1. Scanner les sources : Site web (rubriques "Produit", "Solution", "Tarifs"),
+       documentation technique publique, Github/Gitlab (si public).
+    2. Déterminer la typologie :
+       - Pur SaaS (modèle abonnement cloud)
+       - Marketplace
+       - Legacy transformé (outil interne devenu produit)
+       - Hybrid (on-premise + cloud)
+    3. Identifier la stack technique si visible (PHP, Python, Node, Java, etc.)
+    4. Rédiger un résumé concis de la solution (MAXIMUM 20 mots)
+       Exemples : "CRM spécialisé santé", "ERP pour PME industrielles", "Plateforme de gestion RH"
+
+    Utiliser des sources fiables et croiser les informations pour assurer la précision.
+  expected_output: >
+    Pour chaque entreprise, fournir :
+    - Nom de l'entreprise
+    - Année de création (YYYY) ou "Unknown"
+    - Nationalité (FR, INT (Lien FR), US, UK, etc.) ou "Unknown"
+    - Typologie SaaS (Pur SaaS, Marketplace, Legacy, Hybrid)
+    - Stack technique détectée (si visible)
+    - Résumé solution (max 20 mots)
+    - Sources utilisées pour vérification
+
+    Indiquer clairement quand une information n'a pas pu être trouvée ou vérifiée.
+  agent: corporate_analyst_and_saas_qualifier
+  context:
+  - extraction_and_macro_filtering
+commercial_analysis:
+  description: |-
+    ACT 4 - Ingénierie Commerciale
+
+    Pour chaque entreprise qualifiée, analyser le potentiel commercial WakaStart :
+
+    1. Analyse Financière & Historique :
+       - Rechercher les levées de fonds récentes (besoin d'accélération ?)
+       - Identifier l'absence d'évolution depuis longtemps (besoin de refonte Legacy ?)
+       - Évaluer la maturité de l'entreprise (StartUp, ScaleUp, Legacy)
+
+    2. Matching WakaStart - Croiser les "douleurs" probables avec les solutions :
+       - Startup Santé → Besoin HDS/ISO27001 → Score élevé
+       - Vieux logiciel desktop → Besoin migration Cloud/SaaS → Score élevé
+       - Stack PHP/Python ancienne → Besoin Migration Pack → Score élevé
+       - Scaling difficile → Besoin infrastructure Kubernetes → Score élevé
+
+    3. Calculer le Score de Pertinence (0-100%) :
+       - 90-100% : Santé (besoin HDS) + stack vieillissante
+       - 80-90% : Finance/B2B grands comptes + besoin ISO 27001/NIS2
+       - 70-80% : Levée de fonds récente + besoin accélération dev
+       - 60-70% : Stack PHP/Python legacy + pas d'évolution 5+ ans
+       - 50-60% : SaaS B2B avec besoin multi-tenant/marque blanche
+       - <50% : Pas de SaaS clair ou pas d'ancrage France
+
+    4. Rédiger l'Angle d'Attaque pour le commercial :
+       - Identifier le levier principal (dette technique, sécurité, time-to-market, etc.)
+       - Formuler une phrase d'accroche contextuelle
+       Exemple : "Approcher sur l'angle de la dette technique et de la conformité NIS2"
+
+  expected_output: >
+    Pour chaque entreprise, fournir :
+    - Nom de l'entreprise
+    - Score de Pertinence (pourcentage 0-100)
+    - Justification du score (2-3 raisons clés)
+    - Angle d'attaque commercial (1 phrase actionnable)
+    - Offres WakaStart recommandées (liste des produits pertinents)
+
+  agent: wakastart_sales_engineer
+  context:
+  - extraction_and_macro_filtering
+  - origin_identification_and_saas_qualification
+
+gamma_webpage_creation:
+  description: |-
+    Creation de presentations commerciales WakaStart pour chaque prospect via Gamma.
+
+    Pour CHAQUE entreprise ayant ete analysee dans les taches precedentes, creer
+    une page web commerciale CLIENT-FACING via l'outil gamma_create_webpage.
+
+    ETAPES OBLIGATOIRES :
+
+    1. Lire le contexte des taches precedentes pour recuperer :
+       - Le nom de l'entreprise et son URL (ACT 0+1)
+       - Le secteur d'activite et la solution SaaS (ACT 2+3)
+       - Les problematiques identifiees par l'analyste commercial (ACT 4)
+       - Les offres WakaStart recommandees (ACT 4)
+
+    2. Pour chaque entreprise, rediger un PROMPT DE PERSONNALISATION destine a Gamma.
+       Ce prompt doit permettre a Gamma d'adapter le template de vente WakaStart
+       au prospect specifique. Le prompt doit contenir :
+
+       - Le nom de l'entreprise et son secteur d'activite
+       - Les defis metier du prospect (exemples : dette technique, besoin de conformite
+         HDS/ISO27001/NIS2, acceleration du time-to-market, scalabilite infrastructure)
+       - Les solutions WakaStart adaptees a ces defis :
+         * Developpement rapide (10-25x plus vite, couts divises par 5 a 15)
+         * Migration Pack (PHP/Python/Go vers Next.js/Nest.js)
+         * Securite Secure by Design (ISO 27001, HDS, NIS2)
+         * Multi-tenant natif et marques blanches
+         * Hebergement Kubernetes OVH avec scalabilite automatique
+       - La proposition de valeur personnalisee pour ce prospect
+       - Les benefices concrets et chiffres si possible
+
+       IMPORTANT sur le TON du prompt :
+       - C'est une presentation POUR LE PROSPECT (client final), pas un document interne
+       - Ne PAS inclure le score de pertinence (outil interne)
+       - Ne PAS utiliser de jargon interne (ACT, Cameleon, angle d'attaque)
+       - Utiliser un ton professionnel, engageant, oriente benefices client
+       - S'adresser au prospect comme un partenaire de confiance
+
+    3. Appeler gamma_create_webpage avec :
+       - prompt : le prompt de personnalisation redige ci-dessus
+       - company_name : le nom commercial de l'entreprise (ex: "WakaStellar")
+       - company_domain : le domaine du site web sans https:// ni www. (ex: "wakastellar.com")
+         Extraire le domaine depuis l'URL du site web identifie en ACT 0+1.
+
+       L'outil ajoutera automatiquement sur la premiere page :
+       - Le logo de l'entreprise prospect (recherche automatique via Clearbit)
+       - L'image Opportunity Analysis (WakaStellar)
+       - Le logo WakaStellar
+
+    4. Collecter l'URL retournee pour chaque entreprise
+
+  expected_output: >
+    Pour chaque entreprise, fournir :
+    - Nom de l'entreprise
+    - URL de la page Gamma creee (format https://gamma.app/docs/xxx)
+    - Statut de creation (Succes / Echec / Non disponible)
+
+    Si la creation a echoue, indiquer "Non disponible" comme URL.
+
+  agent: gamma_webpage_creator
+  context:
+    - extraction_and_macro_filtering
+    - origin_identification_and_saas_qualification
+    - commercial_analysis
+
+decision_makers_identification:
+  description: |-
+    ACT 5 - Identification des Décisionnaires
+
+    ÉTAPE PRÉALABLE OBLIGATOIRE :
+    Consulter le contexte des tâches précédentes. Les agents précédents ont DÉJÀ
+    identifié des dirigeants via Pappers (registre légal) et via le scraping du site web.
+    Tu DOIS récupérer ces noms et les enrichir, pas repartir de zéro.
+
+    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés :
+
+    1. Cibles prioritaires (par ordre de préférence) :
+       - CEO / Fondateur / Président (Vision stratégique, signe les gros contrats)
+       - CTO / DSI (Décision technique, dette technique)
+       - COO (Efficacité opérationnelle)
+       - RSSI (Sécurité, normes ISO27001/NIS2)
+       - VP Engineering / Directeur Produit
+
+    2. Pour chaque décideur identifié, collecter :
+       - Nom complet (Prénom NOM) - TOUJOURS le nom complet, jamais tronqué
+       - Titre/Fonction exacte
+       - Email professionnel vérifié
+       - Numéro de téléphone professionnel
+       - URL du profil LinkedIn
+
+    3. MÉTHODE OBLIGATOIRE pour chaque décideur :
+       a. Trouver le profil LinkedIn via recherche web "[Prénom Nom] [Entreprise] LinkedIn"
+       b. Une fois l'URL LinkedIn trouvée, APPELER SYSTÉMATIQUEMENT l'outil kaspr_enrich
+          avec les paramètres : linkedin_url (URL LinkedIn) et full_name (Prénom Nom)
+       c. L'outil kaspr_enrich retourne : email professionnel vérifié ET numéro de téléphone
+       d. Si kaspr_enrich ne retourne pas d'email, indiquer "Générique"
+          et proposer le pattern probable (prenom.nom@domaine.com)
+       e. Si kaspr_enrich ne retourne pas de téléphone, indiquer "Non trouvé"
+
+    4. IMPORTANT :
+       - Tu DOIS identifier au minimum 2 décideurs par entreprise
+       - Tu DOIS appeler kaspr_enrich pour CHAQUE décideur ayant un profil LinkedIn
+       - Ne JAMAIS tronquer un nom (ex: "Emanuela" sans nom de famille est INTERDIT)
+
+  expected_output: >
+    Pour chaque entreprise, fournir EXACTEMENT ce format pour chaque décideur (jusqu'à 3) :
+    - Décideur 1 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 2 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 3 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+
+    IMPORTANT : Le nom doit TOUJOURS être complet (Prénom NOM).
+    Si un décideur n'est pas trouvé, indiquer "Non trouvé" pour TOUS ses champs.
+
+  agent: lead_generation_expert
+  context:
+  - extraction_and_macro_filtering
+  - origin_identification_and_saas_qualification
+  - commercial_analysis
+
+compile_final_company_analysis_report:
+  description: |-
+    Compiler toutes les informations collectées dans un CSV de 23 colonnes.
+    Sortir UNIQUEMENT les données CSV brutes, sans texte avant ou après.
+
+    RÈGLE PRINCIPALE : Extraire TOUTES les données des tâches précédentes.
+    Ne jamais mettre "Unknown" si l'information existe dans le contexte.
+    Chercher activement : année de création, score de pertinence, stratégie commerciale,
+    noms complets des décideurs, emails, téléphones, LinkedIn, URL page Gamma.
+
+    DÉFINITION PRÉCISE DES COLONNES CRITIQUES (NE PAS CONFONDRE) :
+    - "Solution SaaS" (colonne E) : Description COURTE du produit/service en max 20 mots.
+      Exemple : "CRM spécialisé santé", "ERP pour PME industrielles"
+      Source : tâche origin_identification_and_saas_qualification
+    - "Stratégie & Angle" (colonne G) : L'ANGLE D'ATTAQUE COMMERCIAL WakaStart.
+      C'est la stratégie de vente contextualisée, PAS la description du produit.
+      Chercher dans le contexte les mots-clés : "Angle d'attaque", "Stratégie recommandée",
+      "Levier principal", "Phrase d'accroche".
+      Exemple : "Approcher sur dette technique + internalisation technologique post-Série A"
+      Source : tâche commercial_analysis (agent Ingénieur Commercial)
+    - "Page Gamma" (colonne W) : L'URL de la page web Gamma générée.
+      Chercher dans le contexte l'URL au format https://gamma.app/docs/xxx
+      Source : tâche gamma_webpage_creation
+      Si non disponible, indiquer "Non disponible"
+
+    Les 23 colonnes (une ligne par entreprise, champs avec virgules entre guillemets) :
+    Société,Site Web,Nationalité,Année Création,Solution SaaS,Pertinence (%),Stratégie & Angle,Décideur 1 - Nom,Décideur 1 - Titre,Décideur 1 - Email,Décideur 1 - Téléphone,Décideur 1 - LinkedIn,Décideur 2 - Nom,Décideur 2 - Titre,Décideur 2 - Email,Décideur 2 - Téléphone,Décideur 2 - LinkedIn,Décideur 3 - Nom,Décideur 3 - Titre,Décideur 3 - Email,Décideur 3 - Téléphone,Décideur 3 - LinkedIn,Page Gamma
+
+    Valeurs par défaut si donnée absente : "Unknown" pour les infos entreprise, "Non trouvé" pour les décideurs, "Non disponible" pour Page Gamma.
+  expected_output: |-
+    Données CSV brutes avec en-têtes et lignes de données. Format exact (23 colonnes) :
+    Société,Site Web,Nationalité,Année Création,Solution SaaS,Pertinence (%),Stratégie & Angle,Décideur 1 - Nom,Décideur 1 - Titre,Décideur 1 - Email,Décideur 1 - Téléphone,Décideur 1 - LinkedIn,Décideur 2 - Nom,Décideur 2 - Titre,Décideur 2 - Email,Décideur 2 - Téléphone,Décideur 2 - LinkedIn,Décideur 3 - Nom,Décideur 3 - Titre,Décideur 3 - Email,Décideur 3 - Téléphone,Décideur 3 - LinkedIn,Page Gamma
+  agent: data_compiler_and_reporter
+  context:
+  - extraction_and_macro_filtering
+  - origin_identification_and_saas_qualification
+  - commercial_analysis
+  - gamma_webpage_creation
+  - decision_makers_identification
