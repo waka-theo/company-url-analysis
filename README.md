@@ -1,4 +1,4 @@
-# Protocole AUTO MASS PROJECT
+# WakaStart Leads
 
 Systeme multi-agents [CrewAI](https://crewai.com) pour le sourcing et l'enrichissement automatise de leads qualifies pour **WakaStart** (plateforme SaaS de WakaStellar).
 
@@ -35,30 +35,59 @@ GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 ## Utilisation
 
 ```bash
-# Lancer le crew d'analyse (mode test avec liste_test.json)
-crewai run
+# Lancer le crew d'analyse
+python -m wakastart_leads.main run
 
 # Lancer le crew de recherche d'URLs
-python main.py search
-python main.py search --criteria path/to/file.json --output output/urls.json
+python -m wakastart_leads.main search
+python -m wakastart_leads.main search --criteria path/to/file.json --output output/urls.json
 
 # Lancer l'enrichissement de donnees
-python main.py enrich
-python main.py enrich --test
-python main.py enrich --input path/to/file.csv --batch-size 10
+python -m wakastart_leads.main enrich
+python -m wakastart_leads.main enrich --test                    # Mode test (20 URLs)
+python -m wakastart_leads.main enrich --input path/to/file.csv  # CSV specifique
+python -m wakastart_leads.main enrich --batch-size 10           # Taille de batch
 
-# Entrainement
-crewai train <n_iterations> <output_filename>
+# Entrainement et replay
+python -m wakastart_leads.main train <n_iterations> <output_filename>
+python -m wakastart_leads.main replay <task_id>
+python -m wakastart_leads.main test <n_iterations> <model_name>
 
-# Replay d'une tache specifique
-crewai replay <task_id>
+# Tests unitaires
+pytest
+pytest -v  # Mode verbose
 ```
 
 ## Architecture
 
-Le projet comporte **3 crews** independants.
+Le projet comporte **3 crews** independants, chacun isole dans son propre dossier avec config, tools, input et output :
 
-### Crew 1 : Analyse d'entreprises (6 taches sequentielles)
+```
+src/wakastart_leads/
+├── main.py                      # Point d'entree CLI
+├── crews/
+│   ├── analysis/                # Crew 1 : Analyse d'entreprises
+│   │   ├── crew.py              # AnalysisCrew (6 agents, 6 taches)
+│   │   ├── config/              # agents.yaml, tasks.yaml
+│   │   ├── tools/               # gamma_tool.py, kaspr_tool.py
+│   │   ├── input/               # liste.json, liste_test.json
+│   │   └── output/              # company_report.csv, logs/, backups/
+│   ├── search/                  # Crew 2 : Recherche d'URLs
+│   │   ├── crew.py              # SearchCrew
+│   │   ├── config/              # agents.yaml, tasks.yaml
+│   │   ├── input/               # search_criteria.json
+│   │   └── output/              # search_results_raw.json, logs/
+│   └── enrichment/              # Crew 3 : Enrichissement CSV
+│       ├── crew.py              # EnrichmentCrew
+│       ├── config/              # agents.yaml, tasks.yaml
+│       ├── input/               # CSV fourni par l'utilisateur
+│       └── output/              # enrichment_accumulated.json, logs/
+└── shared/
+    ├── tools/                   # pappers_tool.py (partage)
+    └── utils/                   # url_utils, csv_utils, log_rotation, constants
+```
+
+### Crew 1 : Analyse d'entreprises
 
 ```
 URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilation --> CSV (23 cols)
@@ -73,7 +102,9 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilatio
 | ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 (temp 0.2) | Identification decideurs + enrichissement Kaspr (email, telephone) |
 | Final | Data Compiler | GPT-4o (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
-### Crew 2 : Recherche d'URLs (`SearchCrew`)
+**Tools specifiques** : `GammaCreateTool`, `KasprEnrichTool`
+
+### Crew 2 : Recherche d'URLs
 
 ```
 Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON (URLs)
@@ -87,10 +118,10 @@ Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON 
 
 - **Agent** : Expert en Veille Strategique & Detection SaaS (`saas_discovery_scout`)
 - **Modele** : Claude Sonnet 4.5 (temp 0.3)
-- **Input** : `search_criteria.json`
-- **Output** : `output/search_results_raw.json`
+- **Input** : `crews/search/input/search_criteria.json`
+- **Output** : `crews/search/output/search_results_raw.json`
 
-### Crew 3 : Enrichissement de donnees (`EnrichmentCrew`)
+### Crew 3 : Enrichissement de donnees
 
 ```
 CSV existant --> Extraction URLs --> Enrichissement batch --> CSV enrichi
@@ -99,54 +130,27 @@ CSV existant --> Extraction URLs --> Enrichissement batch --> CSV enrichi
 - **Agent** : Expert en Analyse SaaS (`saas_enrichment_analyst`)
 - **Modele** : GPT-4o (temp 0.3)
 - **Input** : CSV avec colonne "Site Internet"
-- **Output** : CSV enrichi + `output/enrichment_accumulated.json`
+- **Output** : CSV enrichi + `crews/enrichment/output/enrichment_accumulated.json`
 
 Colonnes ajoutees :
-- Nationalite (emoji drapeau)
-- Solution SaaS (secteur + description max 20 mots)
-- Pertinence (score 0-100%)
-- Explication (justification WakaStart)
+- **Nationalite** : Emoji drapeau du siege social
+- **Solution SaaS** : Secteur + description (max 20 mots)
+- **Pertinence** : Score 0-100% selon matrice WakaStart
+- **Explication** : Justification avec qualification et module WakaStart recommande
 
 ### Tools
 
-- **ScrapeWebsiteTool** : Scraping de contenu web
-- **SerperDevTool** : Recherche Google via API Serper
-- **PappersSearchTool** : Donnees legales entreprises (SIREN, dirigeants, CA)
-- **KasprEnrichTool** : Enrichissement contacts via LinkedIn (email pro, telephone)
-- **GammaCreateTool** : Creation pages web via API Gamma (template + logos dynamiques Clearbit/Google)
-
-### Fichiers principaux
-
-```
-src/company_url_analysis_automation/
-  crew.py              # Definitions agents, taches, crew d'analyse
-  search_crew.py       # Definitions du crew de recherche (SearchCrew)
-  enrichment_crew.py   # Definitions du crew d'enrichissement (EnrichmentCrew)
-  main.py              # Entry point + post-processing CSV et JSON
-  config/
-    agents.yaml        # Roles et backstories des 7 agents
-    tasks.yaml         # Descriptions des 9 taches
-    enrichment_agents.yaml  # Agent saas_enrichment_analyst
-    enrichment_tasks.yaml   # Tache + matrice de scoring WakaStart
-  tools/
-    __init__.py
-    kaspr_tool.py      # API Kaspr (enrichissement contacts)
-    pappers_tool.py    # API Pappers (donnees legales)
-    gamma_tool.py      # API Gamma (creation pages web + logos)
-tests/
-  conftest.py            # Fixtures partagees et mocks API
-  test_main.py           # Tests crew d'analyse (load_urls, post_process_csv)
-  test_search_crew.py    # Tests SearchCrew (agent, taches, config)
-  test_search_main.py    # Tests crew de recherche (criteres, post-processing, commande)
-  tools/
-    test_kaspr_tool.py   # Tests KasprEnrichTool
-    test_pappers_tool.py # Tests PappersSearchTool
-    test_gamma_tool.py   # Tests GammaCreateTool (logos, prompt enrichi, polling)
-```
+| Tool | Emplacement | Description |
+|------|-------------|-------------|
+| **ScrapeWebsiteTool** | CrewAI built-in | Scraping de contenu web |
+| **SerperDevTool** | CrewAI built-in | Recherche Google via API Serper |
+| **PappersSearchTool** | `shared/tools/` | Donnees legales entreprises (SIREN, dirigeants, CA) |
+| **KasprEnrichTool** | `crews/analysis/tools/` | Enrichissement contacts via LinkedIn |
+| **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web via API Gamma |
 
 ## Output CSV
 
-Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
+Fichier : `crews/analysis/output/company_report.csv` (UTF-8 BOM pour Excel)
 
 23 colonnes par entreprise :
 - **Entreprise** : Nom, Site Web, Nationalite, Annee Creation
@@ -166,19 +170,50 @@ Fichier : `output/company_report.csv` (UTF-8 BOM pour Excel)
 | 50-60% | SaaS B2B avec besoin multi-tenant/marque blanche |
 | <50% | Pas de SaaS clair ou pas d'ancrage France |
 
+## Logging
+
+Chaque crew genere ses logs dans son propre dossier `output/logs/` :
+- `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.json`
+- `crews/search/output/logs/search_YYYYMMDD_HHMMSS.json`
+- `crews/enrichment/output/logs/enrich_YYYYMMDD_HHMMSS.json`
+
+**Rotation automatique** : Les logs > 30 jours sont supprimes automatiquement.
+
 ## Tests
 
-179 tests unitaires avec pytest couvrant les 3 crews (analyse, recherche, enrichissement), les 3 tools custom (Kaspr, Pappers, Gamma avec logos dynamiques), le post-processing CSV/JSON et la normalisation d'URLs.
+179 tests unitaires avec pytest couvrant les 3 crews, les 3 tools custom et les utilitaires.
 
 ```bash
-pytest       # Lancer tous les tests
-pytest -v    # Mode verbose
+pytest                           # Tous les tests
+pytest tests/crews/analysis/     # Tests crew Analysis
+pytest tests/shared/tools/       # Tests tools partages
+pytest -v                        # Mode verbose
+```
+
+Structure des tests :
+```
+tests/
+├── conftest.py
+├── crews/
+│   ├── analysis/
+│   │   ├── test_crew.py
+│   │   └── tools/
+│   │       ├── test_gamma_tool.py
+│   │       └── test_kaspr_tool.py
+│   ├── search/
+│   │   └── test_crew.py
+│   └── enrichment/
+└── shared/
+    ├── tools/
+    │   └── test_pappers_tool.py
+    └── utils/
+        ├── test_url.py
+        ├── test_csv.py
+        └── test_search.py
 ```
 
 ## Documentation
 
-- `/docs/Projet WakaStart.pdf` - Description plateforme WakaStart
-- `/docs/Protocole Theo.pdf` - Description complete du projet
-- `/docs/kaspr.txt` - Documentation API Kaspr
-- `/docs/gamma_api.txt` - Documentation API Gamma
-- `/docs/pappers_api_v2.yaml` - Specification OpenAPI Pappers v2
+- `docs/plans/` - Plans de design et d'implementation
+- `docs/business/` - PDFs metier (Projet WakaStart, Protocole)
+- Documentation API dans les dossiers tools concernés
