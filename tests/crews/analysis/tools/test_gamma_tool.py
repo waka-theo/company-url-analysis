@@ -428,3 +428,36 @@ class TestGammaRunExceptions:
         ):
             result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "inattendue" in result.lower()
+
+
+# ===========================================================================
+# Tests _sanitize_slug
+# ===========================================================================
+
+
+class TestSanitizeSlug:
+    """Tests pour la methode _sanitize_slug."""
+
+    @pytest.fixture
+    def gamma_tool(self):
+        return GammaCreateTool()
+
+    def test_simple_name(self, gamma_tool):
+        """Un nom simple est converti en minuscules avec tirets."""
+        assert gamma_tool._sanitize_slug("France-Care") == "france-care"
+
+    def test_name_with_accents(self, gamma_tool):
+        """Les accents sont normalises."""
+        assert gamma_tool._sanitize_slug("Société Générale") == "societe-generale"
+
+    def test_name_with_special_chars(self, gamma_tool):
+        """Les caracteres speciaux sont remplaces par des tirets."""
+        assert gamma_tool._sanitize_slug("AI & ML Corp.") == "ai-ml-corp"
+
+    def test_empty_name_returns_prospect(self, gamma_tool):
+        """Un nom vide retourne 'prospect'."""
+        assert gamma_tool._sanitize_slug("") == "prospect"
+
+    def test_only_special_chars_returns_prospect(self, gamma_tool):
+        """Un nom avec uniquement des caracteres speciaux retourne 'prospect'."""
+        assert gamma_tool._sanitize_slug("@#$%") == "prospect"
