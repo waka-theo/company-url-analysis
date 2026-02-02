@@ -307,6 +307,52 @@ class TestGammaRun:
             payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
             assert payload["gammaId"] == "g_w56csm22x0u632h"
 
+    @patch.dict(os.environ, {
+        "GAMMA_API_KEY": "test-key",
+        "LINKENER_API_BASE": "https://url.wakastart.com/api",
+        "LINKENER_USERNAME": "testuser",
+        "LINKENER_PASSWORD": "testpass",
+    })
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.get")
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.head")
+    def test_returns_linkener_url_when_available(
+        self, mock_head, mock_get, mock_post
+    ):
+        """Retourne l'URL Linkener si la creation reussit."""
+        # Mock HEAD pour le logo
+        mock_head.return_value = MagicMock(status_code=200)
+
+        # Mock POST pour Gamma generation
+        mock_gamma_gen = MagicMock()
+        mock_gamma_gen.status_code = 200
+        mock_gamma_gen.json.return_value = {"generationId": "gen123"}
+
+        # Mock POST pour Linkener auth
+        mock_linkener_auth = MagicMock()
+        mock_linkener_auth.status_code = 200
+        mock_linkener_auth.text = "test_token"
+
+        # Mock POST pour Linkener create URL
+        mock_linkener_create = MagicMock()
+        mock_linkener_create.status_code = 201
+
+        mock_post.side_effect = [mock_gamma_gen, mock_linkener_auth, mock_linkener_create]
+
+        # Mock GET pour polling status (gammaUrl au premier niveau)
+        mock_status = MagicMock()
+        mock_status.status_code = 200
+        mock_status.json.return_value = {
+            "status": "completed",
+            "gammaUrl": "https://gamma.app/docs/test123"
+        }
+        mock_get.return_value = mock_status
+
+        tool = GammaCreateTool()
+        result = tool._run("Test prompt", "TestCorp", "testcorp.com")
+
+        assert result == "https://url.wakastart.com/testcorp"
+
 
 # ===========================================================================
 # Tests _poll_generation_status
