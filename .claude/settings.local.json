@@ -3,5 +3,6 @@
     "allow": [
       "mcp__chrome-devtools__click"
     ]
-  }
+  },
+  "outputStyle": "Explanatory"
 }

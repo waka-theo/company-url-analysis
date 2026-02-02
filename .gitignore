@@ -17,4 +17,4 @@ src/wakastart_leads/crews/*/output/logs/
 src/wakastart_leads/crews/*/output/backups/
 src/wakastart_leads/crews/*/output/*.csv
 src/wakastart_leads/crews/*/output/*.json
-!src/wakastart_leads/crews/*/output/.gitkeep
+!src/wakastart_leads/crews/*/output/.gitkeepCLAUDE.local.md

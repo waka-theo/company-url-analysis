@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## References importantes
+
+- @README.md - Apercu du projet
+- @pyproject.toml - Configuration Python et dependances
+
+### Documentation API (charger au besoin)
+- Pappers: @src/wakastart_leads/shared/tools/pappers_api.yaml
+- Kaspr: @src/wakastart_leads/crews/analysis/tools/kaspr_api.txt
+- Gamma: @src/wakastart_leads/crews/analysis/tools/gamma_api.txt
+
+### Configuration des agents
+- Analysis agents: @src/wakastart_leads/crews/analysis/config/agents.yaml
+- Analysis tasks: @src/wakastart_leads/crews/analysis/config/tasks.yaml
+- Search config: @src/wakastart_leads/crews/search/config/agents.yaml
+- Enrichment config: @src/wakastart_leads/crews/enrichment/config/agents.yaml
+
 ## Project Overview
 
 **WakaStart Leads** - Systeme multi-agents CrewAI pour le sourcing et l'enrichissement de leads qualifies pour **WakaStart** (plateforme SaaS de WakaStellar).

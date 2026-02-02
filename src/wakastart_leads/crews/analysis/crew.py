@@ -51,7 +51,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="anthropic/claude-sonnet-4-5-20250929",
+                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
                 temperature=0.4,
             ),
         )
@@ -70,7 +70,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="anthropic/claude-sonnet-4-5-20250929",
+                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
                 temperature=0.6,
             ),
         )
@@ -108,7 +108,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="anthropic/claude-sonnet-4-5-20250929",
+                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
                 temperature=0.2,
             ),
         )
