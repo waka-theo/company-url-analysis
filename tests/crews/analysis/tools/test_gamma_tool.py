@@ -1,5 +1,6 @@
 """Tests unitaires pour GammaCreateTool."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -517,3 +518,98 @@ class TestGetLinkenerToken:
         )
 
         assert token is None
+
+
+# ===========================================================================
+# Tests _create_linkener_url
+# ===========================================================================
+
+
+class TestCreateLinkenerUrl:
+    """Tests pour la methode _create_linkener_url."""
+
+    @pytest.fixture
+    def gamma_tool(self):
+        return GammaCreateTool()
+
+    @patch.dict(os.environ, {
+        "LINKENER_API_BASE": "https://url.wakastart.com/api",
+        "LINKENER_USERNAME": "testuser",
+        "LINKENER_PASSWORD": "testpass",
+    })
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_creates_short_url_on_success(self, mock_post, gamma_tool):
+        """Cree un lien court et retourne l'URL complete."""
+        # Mock auth token response
+        mock_auth_response = MagicMock()
+        mock_auth_response.status_code = 200
+        mock_auth_response.text = "test_token"
+
+        # Mock create URL response
+        mock_url_response = MagicMock()
+        mock_url_response.status_code = 201
+
+        mock_post.side_effect = [mock_auth_response, mock_url_response]
+
+        result = gamma_tool._create_linkener_url(
+            "https://gamma.app/docs/xxx", "France Care"
+        )
+
+        assert result == "https://url.wakastart.com/france-care"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_returns_none_when_env_vars_missing(self, gamma_tool):
+        """Retourne None si les variables d'environnement manquent."""
+        result = gamma_tool._create_linkener_url(
+            "https://gamma.app/docs/xxx", "TestCorp"
+        )
+        assert result is None
+
+    @patch.dict(os.environ, {
+        "LINKENER_API_BASE": "https://url.wakastart.com/api",
+        "LINKENER_USERNAME": "testuser",
+        "LINKENER_PASSWORD": "testpass",
+    })
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_none_when_auth_fails(self, mock_post, gamma_tool):
+        """Retourne None si l'authentification echoue."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_post.return_value = mock_response
+
+        result = gamma_tool._create_linkener_url(
+            "https://gamma.app/docs/xxx", "TestCorp"
+        )
+
+        assert result is None
+
+    @patch.dict(os.environ, {
+        "LINKENER_API_BASE": "https://url.wakastart.com/api",
+        "LINKENER_USERNAME": "testuser",
+        "LINKENER_PASSWORD": "testpass",
+    })
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.time.time", return_value=1234567890.123)
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_adds_suffix_on_slug_conflict(self, mock_post, mock_time, gamma_tool):
+        """Ajoute un suffixe numerique si le slug existe deja (409)."""
+        # Mock auth
+        mock_auth = MagicMock()
+        mock_auth.status_code = 200
+        mock_auth.text = "token"
+
+        # Mock first create (conflict)
+        mock_conflict = MagicMock()
+        mock_conflict.status_code = 409
+
+        # Mock retry create (success)
+        mock_success = MagicMock()
+        mock_success.status_code = 201
+
+        mock_post.side_effect = [mock_auth, mock_conflict, mock_success]
+
+        result = gamma_tool._create_linkener_url(
+            "https://gamma.app/docs/xxx", "TestCorp"
+        )
+
+        # Le suffixe est 1234567890 % 1000 = 890
+        assert result == "https://url.wakastart.com/testcorp-890"
