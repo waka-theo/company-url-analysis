@@ -461,3 +461,59 @@ class TestSanitizeSlug:
     def test_only_special_chars_returns_prospect(self, gamma_tool):
         """Un nom avec uniquement des caracteres speciaux retourne 'prospect'."""
         assert gamma_tool._sanitize_slug("@#$%") == "prospect"
+
+
+# ===========================================================================
+# Tests _get_linkener_token
+# ===========================================================================
+
+
+class TestGetLinkenerToken:
+    """Tests pour la methode _get_linkener_token."""
+
+    @pytest.fixture
+    def gamma_tool(self):
+        return GammaCreateTool()
+
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_token_on_success(self, mock_post, gamma_tool):
+        """Retourne le token si l'authentification reussit."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "abc123token"
+        mock_post.return_value = mock_response
+
+        token = gamma_tool._get_linkener_token(
+            "https://url.wakastart.com/api", "user", "pass"
+        )
+
+        assert token == "abc123token"
+        mock_post.assert_called_once_with(
+            "https://url.wakastart.com/api/auth/new_token",
+            json={"username": "user", "password": "pass"},
+            timeout=10,
+        )
+
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_none_on_auth_failure(self, mock_post, gamma_tool):
+        """Retourne None si l'authentification echoue (401)."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_post.return_value = mock_response
+
+        token = gamma_tool._get_linkener_token(
+            "https://url.wakastart.com/api", "user", "wrongpass"
+        )
+
+        assert token is None
+
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_none_on_request_exception(self, mock_post, gamma_tool):
+        """Retourne None si une exception reseau se produit."""
+        mock_post.side_effect = requests.exceptions.RequestException("Network error")
+
+        token = gamma_tool._get_linkener_token(
+            "https://url.wakastart.com/api", "user", "pass"
+        )
+
+        assert token is None
