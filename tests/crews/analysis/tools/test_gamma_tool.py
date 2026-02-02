@@ -160,6 +160,19 @@ class TestBuildEnhancedPrompt:
             )
             assert result.startswith(original)
 
+    def test_includes_sizing_instructions(self, gamma_tool):
+        """Le prompt doit contenir des instructions explicites de dimensionnement."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch(self.PATCH_HEAD, return_value=mock_resp):
+            result = gamma_tool._build_enhanced_prompt(
+                "Base prompt", "testcorp.com", "TestCorp"
+            )
+            # Nouvelles instructions attendues
+            assert "LOGOS PREMIERE PAGE" in result or "LOGOS" in result
+            assert "60-80px" in result or "meme hauteur" in result.lower()
+            assert "redimensionner" in result.lower()
+
 
 # ===========================================================================
 # Tests _run
