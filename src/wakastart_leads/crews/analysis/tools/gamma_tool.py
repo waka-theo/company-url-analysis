@@ -1,7 +1,9 @@
 """Gamma API Tool for automated webpage creation from template."""
 
 import os
+import re
 import time
+import unicodedata
 
 import requests
 from crewai.tools import BaseTool
@@ -149,6 +151,83 @@ class GammaCreateTool(BaseTool):
 
         return original_prompt + image_section
 
+    def _sanitize_slug(self, name: str) -> str:
+        """Nettoie un nom pour en faire un slug URL-safe."""
+        # Normaliser les accents
+        slug = unicodedata.normalize("NFKD", name)
+        slug = slug.encode("ascii", "ignore").decode("ascii")
+
+        # Minuscules, remplacer espaces et caracteres speciaux par des tirets
+        slug = slug.lower()
+        slug = re.sub(r"[^a-z0-9]+", "-", slug)
+        slug = slug.strip("-")
+
+        return slug or "prospect"
+
+    def _get_linkener_token(self, api_base: str, username: str, password: str) -> str | None:
+        """Obtient un access token Linkener."""
+        try:
+            response = requests.post(
+                f"{api_base}/auth/new_token",
+                json={"username": username, "password": password},
+                timeout=10,
+            )
+            if response.status_code == 200:
+                return response.text.strip()
+        except requests.exceptions.RequestException as e:
+            print(f"[LINKENER DEBUG] Erreur authentification: {e}")
+        return None
+
+    def _create_linkener_url(self, gamma_url: str, company_name: str) -> str | None:
+        """Cree un lien court Linkener pour l'URL Gamma."""
+        api_base = os.getenv("LINKENER_API_BASE", "").strip()
+        username = os.getenv("LINKENER_USERNAME", "").strip()
+        password = os.getenv("LINKENER_PASSWORD", "").strip()
+
+        if not all([api_base, username, password]):
+            print("[LINKENER DEBUG] Variables d'environnement manquantes")
+            return None
+
+        # 1. Obtenir un access token
+        token = self._get_linkener_token(api_base, username, password)
+        if not token:
+            return None
+
+        # 2. Nettoyer le nom pour creer le slug
+        slug = self._sanitize_slug(company_name)
+
+        # 3. Creer le lien court
+        try:
+            response = requests.post(
+                f"{api_base}/urls/",
+                headers={"Authorization": token},
+                json={"slug": slug, "url": gamma_url},
+                timeout=30,
+            )
+
+            if response.status_code in (200, 201):
+                # Construire l'URL finale (sans /api)
+                base_url = api_base.replace("/api", "")
+                return f"{base_url}/{slug}"
+
+            # Gestion slug deja existant (409 Conflict)
+            if response.status_code == 409:
+                slug = f"{slug}-{int(time.time()) % 1000}"
+                retry_response = requests.post(
+                    f"{api_base}/urls/",
+                    headers={"Authorization": token},
+                    json={"slug": slug, "url": gamma_url},
+                    timeout=30,
+                )
+                if retry_response.status_code in (200, 201):
+                    base_url = api_base.replace("/api", "")
+                    return f"{base_url}/{slug}"
+
+        except requests.exceptions.RequestException as e:
+            print(f"[LINKENER DEBUG] Erreur creation lien: {e}")
+
+        return None
+
     def _run(self, prompt: str, company_name: str, company_domain: str) -> str:
         """Execute Gamma webpage creation from template."""
         api_key = os.getenv("GAMMA_API_KEY", "").strip()
@@ -203,7 +282,18 @@ class GammaCreateTool(BaseTool):
             print(f"[GAMMA DEBUG] Generation ID: {generation_id}")
             print("[GAMMA DEBUG] Demarrage du polling...")
 
-            return self._poll_generation_status(generation_id, api_key)
+            gamma_url = self._poll_generation_status(generation_id, api_key)
+
+            # Vérifier que c'est bien une URL valide
+            if gamma_url.startswith("http"):
+                # Créer le lien court automatiquement
+                short_url = self._create_linkener_url(gamma_url, company_name)
+                if short_url:
+                    print(f"[GAMMA DEBUG] Lien court créé: {short_url}")
+                    return short_url
+                print("[GAMMA DEBUG] Linkener indisponible, retour URL Gamma")
+
+            return gamma_url  # Fallback sur URL Gamma si Linkener échoue
 
         except requests.exceptions.Timeout:
             return "Erreur: Timeout lors de la creation Gamma (120s)."
