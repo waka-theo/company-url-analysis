@@ -125,11 +125,26 @@ class GammaCreateTool(BaseTool):
         if not image_lines:
             return original_prompt
 
+        # Construire l'URL du logo prospect
+        company_logo_line = ""
+        if company_logo_url:
+            company_logo_line = (
+                f"- GAUCHE : Logo {company_name} (redimensionner pour correspondre aux autres) : "
+                f"{company_logo_url}\n"
+            )
+
         image_section = (
             "\n\n"
-            "IMAGES POUR LA PREMIERE PAGE (title card) :\n"
-            "Placer ces images/logos cote a cote sur la premiere page :\n"
-            + "\n".join(image_lines)
+            "=== LOGOS PREMIERE PAGE (TITLE CARD) ===\n"
+            "Disposition : 3 logos alignes horizontalement, TOUS DE MEME HAUTEUR (environ 60-80px).\n"
+            "Les logos doivent etre visuellement equilibres et harmonieux.\n\n"
+            "Configuration precise :\n"
+            f"{company_logo_line}"
+            f"- CENTRE : Image 'Opportunity Analysis' (reference de taille) : {OPPORTUNITY_ANALYSIS_IMAGE_URL}\n"
+            f"- DROITE : Logo WakaStellar (meme hauteur) : {WAKASTELLAR_LOGO_URL}\n\n"
+            "IMPORTANT : Si le logo de gauche est trop grand ou a un fond blanc visible,\n"
+            "le redimensionner et l'adapter pour qu'il s'integre harmonieusement avec les deux autres.\n"
+            "Tous les logos doivent avoir une apparence professionnelle et coherente."
         )
 
         return original_prompt + image_section

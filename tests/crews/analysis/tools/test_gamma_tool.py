@@ -137,10 +137,10 @@ class TestBuildEnhancedPrompt:
             result = gamma_tool._build_enhanced_prompt(
                 "Base prompt", "testcorp.com", "TestCorp"
             )
-            assert "IMAGES POUR LA PREMIERE PAGE" in result
-            assert "A gauche" in result
-            assert "Au centre" in result
-            assert "A droite" in result
+            assert "LOGOS PREMIERE PAGE" in result
+            assert "GAUCHE" in result
+            assert "CENTRE" in result
+            assert "DROITE" in result
 
     def test_empty_domain_omits_company_logo(self, gamma_tool):
         result = gamma_tool._build_enhanced_prompt("Base prompt", "", "TestCorp")
@@ -285,9 +285,9 @@ class TestGammaRun:
             call_kwargs = mock_post.call_args
             payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
             assert payload["gammaId"] == GAMMA_TEMPLATE_ID
-            # Le prompt doit etre enrichi (contient le prompt original + les images)
+            # Le prompt doit etre enrichi (contient le prompt original + les logos)
             assert self.SAMPLE_PROMPT in payload["prompt"]
-            assert "IMAGES POUR LA PREMIERE PAGE" in payload["prompt"]
+            assert "LOGOS PREMIERE PAGE" in payload["prompt"]
             assert WAKASTELLAR_LOGO_URL in payload["prompt"]
             assert payload["sharingOptions"]["workspaceAccess"] == "view"
             assert payload["sharingOptions"]["externalAccess"] == "view"
