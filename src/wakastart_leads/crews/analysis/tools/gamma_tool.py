@@ -173,7 +173,8 @@ class GammaCreateTool(BaseTool):
                 timeout=10,
             )
             if response.status_code == 200:
-                return response.text.strip()
+                token = response.text.strip()
+                return token if token else None
         except requests.exceptions.RequestException as e:
             print(f"[LINKENER DEBUG] Erreur authentification: {e}")
         return None
@@ -213,15 +214,18 @@ class GammaCreateTool(BaseTool):
             # Gestion slug deja existant (409 Conflict)
             if response.status_code == 409:
                 slug = f"{slug}-{int(time.time()) % 1000}"
-                retry_response = requests.post(
-                    f"{api_base}/urls/",
-                    headers={"Authorization": token},
-                    json={"slug": slug, "url": gamma_url},
-                    timeout=30,
-                )
-                if retry_response.status_code in (200, 201):
-                    base_url = api_base.replace("/api", "")
-                    return f"{base_url}/{slug}"
+                try:
+                    retry_response = requests.post(
+                        f"{api_base}/urls/",
+                        headers={"Authorization": token},
+                        json={"slug": slug, "url": gamma_url},
+                        timeout=30,
+                    )
+                    if retry_response.status_code in (200, 201):
+                        base_url = api_base.replace("/api", "")
+                        return f"{base_url}/{slug}"
+                except requests.exceptions.RequestException as e:
+                    print(f"[LINKENER DEBUG] Erreur retry apres conflit: {e}")
 
         except requests.exceptions.RequestException as e:
             print(f"[LINKENER DEBUG] Erreur creation lien: {e}")

@@ -565,6 +565,21 @@ class TestGetLinkenerToken:
 
         assert token is None
 
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_none_on_empty_token(self, mock_post, gamma_tool):
+        """Retourne None si l'API retourne un body vide ou whitespace."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "   \n  "  # Whitespace only
+
+        mock_post.return_value = mock_response
+
+        token = gamma_tool._get_linkener_token(
+            "https://url.wakastart.com/api", "user", "pass"
+        )
+
+        assert token is None
+
 
 # ===========================================================================
 # Tests _create_linkener_url
@@ -659,3 +674,34 @@ class TestCreateLinkenerUrl:
 
         # Le suffixe est 1234567890 % 1000 = 890
         assert result == "https://url.wakastart.com/testcorp-890"
+
+    @patch.dict(os.environ, {
+        "LINKENER_API_BASE": "https://url.wakastart.com/api",
+        "LINKENER_USERNAME": "testuser",
+        "LINKENER_PASSWORD": "testpass",
+    })
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.time.time", return_value=1234567890.123)
+    @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
+    def test_returns_none_on_retry_exception(self, mock_post, mock_time, gamma_tool):
+        """Retourne None si une exception reseau se produit pendant le retry 409."""
+        # Mock auth
+        mock_auth = MagicMock()
+        mock_auth.status_code = 200
+        mock_auth.text = "token"
+
+        # Mock first create (conflict 409)
+        mock_conflict = MagicMock()
+        mock_conflict.status_code = 409
+
+        # Mock retry raises exception
+        mock_post.side_effect = [
+            mock_auth,
+            mock_conflict,
+            requests.exceptions.RequestException("Network error during retry"),
+        ]
+
+        result = gamma_tool._create_linkener_url(
+            "https://gamma.app/docs/xxx", "TestCorp"
+        )
+
+        assert result is None
