@@ -50,6 +50,17 @@ class HunterDomainSearchTool(BaseTool):
         # Sinon, c'est juste le handle
         return f"https://www.linkedin.com/in/{handle}"
 
+    def _sort_contacts(self, contacts: list[dict]) -> list[dict]:
+        """Trie les contacts par seniority (executive > senior) puis par confidence."""
+        sorted_contacts = sorted(
+            contacts,
+            key=lambda c: (
+                self.SENIORITY_PRIORITY.get(c.get("seniority"), 99),
+                -c.get("confidence", 0),
+            ),
+        )
+        return sorted_contacts[:3]
+
     def _run(self, domain: str, company_name: str) -> str:
         """Execute Hunter Domain Search."""
         # TODO: implementer dans Task 3
