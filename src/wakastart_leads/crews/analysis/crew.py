@@ -7,7 +7,7 @@ from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
 from .tools.gamma_tool import GammaCreateTool
-from .tools.kaspr_tool import KasprEnrichTool
+from .tools.hunter_tool import HunterDomainSearchTool
 
 
 @CrewBase
@@ -99,7 +99,7 @@ class AnalysisCrew:
         """ACT 5 : Expert en Lead Generation & Profiling"""
         return Agent(
             config=self.agents_config["lead_generation_expert"],
-            tools=[SerperDevTool(), ScrapeWebsiteTool(), PappersSearchTool(), KasprEnrichTool()],
+            tools=[SerperDevTool(), ScrapeWebsiteTool(), PappersSearchTool(), HunterDomainSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
