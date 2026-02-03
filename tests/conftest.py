@@ -8,7 +8,7 @@ from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
 from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
-# from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool  # TODO: decommenter Task 2
+from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +67,11 @@ def pappers_tool():
 @pytest.fixture()
 def gamma_tool():
     return GammaCreateTool()
+
+
+@pytest.fixture()
+def hunter_tool():
+    return HunterDomainSearchTool()
 
 
 # ---------------------------------------------------------------------------
