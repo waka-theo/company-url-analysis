@@ -158,13 +158,30 @@ Le `GammaCreateTool` integre plusieurs fonctionnalites :
 
 | Methode | Description |
 |---------|-------------|
+| `_resize_logo_via_proxy(logo_url)` | Redimensionne un logo via wsrv.nl (150×80px, `fit=contain`) |
+| `_resolve_company_logo(name, url)` | Recupere le logo via Unavatar/Favicon + redimensionnement automatique |
 | `_build_enhanced_prompt()` | Construit le prompt Gamma avec instructions de dimensionnement logos (60-80px) |
 | `_sanitize_slug(name)` | Convertit un nom d'entreprise en slug URL-safe (`France-Care` → `france-care`) |
 | `_get_linkener_token(api_base, username, password)` | Authentification API Linkener, retourne un token JWT |
 | `_create_linkener_url(gamma_url, company_name)` | Cree une URL courte Linkener, gere les collisions (409) avec suffixe |
-| `_run(company_name, ...)` | Workflow complet : creation Gamma → raccourcissement Linkener (optionnel) |
+| `_run(company_name, ...)` | Workflow complet : logo → Gamma → Linkener (optionnel) |
+
+**Constantes de configuration** :
+```python
+IMAGE_PROXY_BASE = "https://wsrv.nl"  # Service gratuit, sans cle API
+LOGO_TARGET_WIDTH = 150
+LOGO_TARGET_HEIGHT = 80
+```
 
 **Fallback** : Si Linkener n'est pas configure (variables env absentes), l'URL Gamma brute est retournee.
+
+### Services externes utilises
+
+| Service | URL | Usage | Cle API |
+|---------|-----|-------|---------|
+| **wsrv.nl** | `https://wsrv.nl` | Proxy de redimensionnement images | Non (gratuit) |
+| **Unavatar** | `https://unavatar.io` | Recuperation logos entreprises | Non (gratuit) |
+| **Linkener** | `https://url.wakastart.com/api` | Raccourcissement URLs | Optionnel |
 
 ### Input Format
 

@@ -160,17 +160,66 @@ Colonnes ajoutees :
 | **KasprEnrichTool** | `crews/analysis/tools/` | Enrichissement contacts via LinkedIn |
 | **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web Gamma + raccourcissement URL Linkener |
 
+#### GammaCreateTool - Workflow
+
+```
+Nom entreprise + URL
+        │
+        ▼
+┌───────────────────────┐
+│  Recuperation logo    │ ← Unavatar / Google Favicon
+│  (Unavatar/Favicon)   │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│  Redimensionnement    │ ← wsrv.nl (150×80px, gratuit)
+│  via proxy wsrv.nl    │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│  Creation page Gamma  │ ← API Gamma + prompt optimise
+│  (avec logos alignes) │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│  Raccourcissement URL │ ← Linkener (optionnel)
+│  (si configure)       │
+└───────────────────────┘
+        │
+        ▼
+URL finale (courte ou brute)
+```
+
 #### GammaCreateTool - Fonctionnalites
 
 Le `GammaCreateTool` integre desormais :
 
-1. **Dimensionnement harmonise des logos** : Instructions explicites pour que les 3 logos de la title card (entreprise, Opportunity Analysis, WakaStellar) aient une hauteur uniforme de 60-80px
+1. **Redimensionnement automatique des logos via proxy** :
+   - Utilise [wsrv.nl](https://wsrv.nl) (service gratuit, sans cle API)
+   - Redimensionne tous les logos a 150×80 px (`fit=contain`, preserve les proportions)
+   - Applique aux logos Unavatar et Google Favicon avant injection dans le prompt
+   - Garantit une apparence professionnelle et coherente sur la title card
 
-2. **Integration Linkener** (optionnel) : Raccourcissement automatique des URLs Gamma
+2. **Instructions de dimensionnement Gamma** :
+   - Prompt explicite pour que les 3 logos (entreprise, Opportunity Analysis, WakaStellar) soient alignes horizontalement
+   - Cible de hauteur 60-80px pour une harmonie visuelle
+
+3. **Integration Linkener** (optionnel) : Raccourcissement automatique des URLs Gamma
    - Convertit les noms d'entreprise en slugs URL-safe (`France-Care` → `france-care`)
    - Genere des URLs courtes : `https://url.wakastart.com/france-care`
    - Gestion des collisions (ajout de suffixe numerique si slug deja pris)
    - Fallback automatique vers l'URL Gamma brute si Linkener non configure
+
+### Services externes
+
+| Service | Type | Usage | Cle API |
+|---------|------|-------|---------|
+| **wsrv.nl** | Proxy images | Redimensionnement logos (150×80px) | Non requise (gratuit) |
+| **Unavatar** | Logos | Recuperation logos entreprises | Non requise |
+| **Linkener** | URL Shortener | URLs courtes brandees | Optionnel (via .env) |
 
 ## Output CSV
 
