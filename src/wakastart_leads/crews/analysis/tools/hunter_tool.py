@@ -97,5 +97,60 @@ class HunterDomainSearchTool(BaseTool):
 
     def _run(self, domain: str, company_name: str) -> str:
         """Execute Hunter Domain Search."""
-        # TODO: implementer dans Task 3
-        return "Not implemented"
+        api_key = os.getenv("HUNTER_API_KEY", "").strip()
+        if not api_key:
+            return "Erreur: HUNTER_API_KEY non configuree dans les variables d'environnement."
+
+        url = "https://api.hunter.io/v2/domain-search"
+        params = {
+            "domain": domain,
+            "api_key": api_key,
+            "type": "personal",
+            "seniority": "executive,senior",
+            "department": "executive,management,it",
+            "limit": 10,
+        }
+
+        try:
+            response = requests.get(url, params=params, timeout=30)
+
+            if response.status_code == 401:
+                return "Erreur: Cle API Hunter invalide ou expiree."
+            elif response.status_code == 429:
+                return "Erreur: Limite de requetes Hunter atteinte. Reessayez plus tard."
+            elif response.status_code != 200:
+                return f"Erreur API Hunter (code {response.status_code}): {response.text}"
+
+            data = response.json()
+            emails = data.get("data", {}).get("emails", [])
+
+            if not emails:
+                return f"Aucun decideur trouve pour {company_name} ({domain})."
+
+            sorted_contacts = self._sort_contacts(emails)
+            result = self._format_decideurs(sorted_contacts, company_name)
+
+            return self._format_output(result)
+
+        except requests.exceptions.Timeout:
+            return "Erreur: Timeout lors de la connexion a l'API Hunter."
+        except requests.exceptions.RequestException as e:
+            return f"Erreur de connexion a l'API Hunter: {e!s}"
+        except Exception as e:
+            return f"Erreur inattendue: {e!s}"
+
+    def _format_output(self, result: dict) -> str:
+        """Formate le resultat en string lisible pour l'agent."""
+        lines = [f"**Decideurs trouves pour {result['company']}** ({result['contacts_found']} contacts)"]
+        lines.append("")
+
+        for i, d in enumerate(result["decideurs"], 1):
+            lines.append(f"**Decideur {i}:**")
+            lines.append(f"- Nom: {d['nom']}")
+            lines.append(f"- Titre: {d['titre']}")
+            lines.append(f"- Email: {d['email']}")
+            lines.append(f"- Telephone: {d['telephone']}")
+            lines.append(f"- LinkedIn: {d['linkedin']}")
+            lines.append("")
+
+        return "\n".join(lines)

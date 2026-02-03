@@ -1,6 +1,9 @@
 """Tests unitaires pour HunterDomainSearchTool."""
 
+from unittest.mock import patch
+
 import pytest
+import requests
 
 from wakastart_leads.crews.analysis.tools.hunter_tool import (
     HunterDomainSearchInput,
@@ -173,3 +176,84 @@ class TestFormatDecideurs:
         """Le nom de l'entreprise est dans le resultat."""
         result = hunter_tool._format_decideurs([], "MyCompany")
         assert result["company"] == "MyCompany"
+
+
+# ===========================================================================
+# Tests _run (mock requests.get + env vars)
+# ===========================================================================
+
+
+class TestHunterRun:
+    PATCH_TARGET = "wakastart_leads.crews.analysis.tools.hunter_tool.requests.get"
+    VALID_DOMAIN = "stripe.com"
+    VALID_COMPANY = "Stripe"
+
+    def test_missing_api_key(self, hunter_tool, clear_all_api_keys):
+        result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+        assert "HUNTER_API_KEY non configuree" in result
+
+    def test_success_200(
+        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response
+    ):
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_domain_search_response)):
+            result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            assert "Patrick Collison" in result
+            assert "patrick@stripe.com" in result
+            assert "CEO" in result
+
+    def test_partial_results(
+        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_partial_response
+    ):
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_partial_response)):
+            result = hunter_tool._run("smallco.com", "SmallCo")
+            assert "Jean Dupont" in result
+            assert "Non trouve" in result
+
+    def test_no_results(
+        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_empty_response
+    ):
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_empty_response)):
+            result = hunter_tool._run("unknown.com", "Unknown")
+            assert "Aucun decideur trouve" in result
+
+    def test_http_401(self, hunter_tool, mock_hunter_api_key, mock_response):
+        with patch(self.PATCH_TARGET, return_value=mock_response(401, text="Unauthorized")):
+            result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            assert "Cle API Hunter invalide" in result
+
+    def test_http_429(self, hunter_tool, mock_hunter_api_key, mock_response):
+        with patch(self.PATCH_TARGET, return_value=mock_response(429)):
+            result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            assert "Limite" in result or "limite" in result
+
+    def test_timeout(self, hunter_tool, mock_hunter_api_key):
+        with patch(self.PATCH_TARGET, side_effect=requests.exceptions.Timeout):
+            result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            assert "Timeout" in result
+
+    def test_network_error(self, hunter_tool, mock_hunter_api_key):
+        with patch(self.PATCH_TARGET, side_effect=requests.exceptions.ConnectionError):
+            result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            assert "connexion" in result.lower()
+
+    def test_correct_api_params(
+        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response
+    ):
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_domain_search_response)) as mock_get:
+            hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
+            call_args = mock_get.call_args
+            params = call_args.kwargs.get("params") or call_args[1].get("params")
+            assert params["domain"] == self.VALID_DOMAIN
+            assert params["type"] == "personal"
+            assert "executive" in params["seniority"]
+            assert "senior" in params["seniority"]
+
+    def test_sorts_by_seniority(
+        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_needs_sorting_response
+    ):
+        """Verifie que executive est en premier meme si confidence plus basse."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_needs_sorting_response)):
+            result = hunter_tool._run("testco.com", "TestCo")
+            boss_pos = result.find("Big Boss")
+            junior_pos = result.find("Junior Dev")
+            assert boss_pos < junior_pos or junior_pos == -1
