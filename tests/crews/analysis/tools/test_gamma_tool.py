@@ -67,20 +67,26 @@ class TestResolveCompanyLogo:
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
             result = gamma_tool._resolve_company_logo("wakastellar.com", "WakaStellar")
-            assert result == f"{UNAVATAR_BASE}/wakastellar.com"
+            # Le resultat est maintenant encapsule dans wsrv.nl pour redimensionnement
+            assert "wsrv.nl" in result
+            assert "unavatar.io%2Fwakastellar.com" in result  # URL-encoded
 
     def test_unavatar_404_falls_back_to_google(self, gamma_tool):
         mock_resp = MagicMock()
         mock_resp.status_code = 404
         with patch(self.PATCH_HEAD, return_value=mock_resp):
             result = gamma_tool._resolve_company_logo("unknown.xyz", "Unknown")
-            assert "google.com/s2/favicons" in result
+            # Le resultat est encapsule dans wsrv.nl, contenant le fallback Google Favicon
+            assert "wsrv.nl" in result
+            assert "google.com" in result or "favicons" in result
             assert "unknown.xyz" in result
 
     def test_unavatar_timeout_falls_back_to_google(self, gamma_tool):
         with patch(self.PATCH_HEAD, side_effect=requests.exceptions.Timeout):
             result = gamma_tool._resolve_company_logo("slow.com", "Slow")
-            assert "google.com/s2/favicons" in result
+            # Le resultat est encapsule dans wsrv.nl, contenant le fallback Google Favicon
+            assert "wsrv.nl" in result
+            assert "google.com" in result or "favicons" in result
 
     def test_empty_domain_returns_empty(self, gamma_tool):
         result = gamma_tool._resolve_company_logo("", "TestCorp")
@@ -127,7 +133,9 @@ class TestBuildEnhancedPrompt:
                 "Base prompt", "testcorp.com", "TestCorp"
             )
             assert "Base prompt" in result
-            assert f"{UNAVATAR_BASE}/testcorp.com" in result
+            # Le logo entreprise est encapsule dans wsrv.nl pour redimensionnement
+            assert "wsrv.nl" in result
+            assert "unavatar.io%2Ftestcorp.com" in result  # URL-encoded dans wsrv.nl
             assert OPPORTUNITY_ANALYSIS_IMAGE_URL in result
             assert WAKASTELLAR_LOGO_URL in result
 
@@ -283,8 +291,9 @@ class TestGammaRun:
             patch(self.PATCH_SLEEP),
         ):
             gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
-            call_kwargs = mock_post.call_args
-            payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+            # Utiliser call_args_list[0] pour le premier POST (Gamma), pas le dernier (Linkener)
+            first_call = mock_post.call_args_list[0]
+            payload = first_call.kwargs.get("json") or first_call[1].get("json")
             assert payload["gammaId"] == GAMMA_TEMPLATE_ID
             # Le prompt doit etre enrichi (contient le prompt original + les logos)
             assert self.SAMPLE_PROMPT in payload["prompt"]
@@ -303,8 +312,9 @@ class TestGammaRun:
             patch(self.PATCH_SLEEP),
         ):
             gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
-            call_kwargs = mock_post.call_args
-            payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+            # Utiliser call_args_list[0] pour le premier POST (Gamma), pas le dernier (Linkener)
+            first_call = mock_post.call_args_list[0]
+            payload = first_call.kwargs.get("json") or first_call[1].get("json")
             assert payload["gammaId"] == "g_w56csm22x0u632h"
 
     @patch.dict(os.environ, {
