@@ -7,16 +7,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - @README.md - Apercu du projet
 - @pyproject.toml - Configuration Python et dependances
 
-### Documentation API (charger au besoin)
-- Pappers: @src/wakastart_leads/shared/tools/pappers_api.yaml
-- Kaspr: @src/wakastart_leads/crews/analysis/tools/kaspr_api.txt
-- Gamma: @src/wakastart_leads/crews/analysis/tools/gamma_api.txt
+### Documentation API (NE PAS CHARGER automatiquement)
 
-### Configuration des agents
-- Analysis agents: @src/wakastart_leads/crews/analysis/config/agents.yaml
-- Analysis tasks: @src/wakastart_leads/crews/analysis/config/tasks.yaml
-- Search config: @src/wakastart_leads/crews/search/config/agents.yaml
-- Enrichment config: @src/wakastart_leads/crews/enrichment/config/agents.yaml
+Pour Pappers, utiliser le resume condense (2k chars) :
+- @src/wakastart_leads/shared/tools/pappers_api_summary.md
+
+Fichiers complets (lire avec Read tool uniquement si besoin de details) :
+- Pappers complet (336k chars): `src/wakastart_leads/shared/tools/pappers_api.yaml`
+- Kaspr: `src/wakastart_leads/crews/analysis/tools/kaspr_api.txt`
+- Gamma: `src/wakastart_leads/crews/analysis/tools/gamma_api.txt`
+
+### Configuration des agents (NE PAS CHARGER - lire manuellement si besoin)
+
+Ces fichiers de config sont charges uniquement si on travaille sur les agents :
+- Analysis agents: `src/wakastart_leads/crews/analysis/config/agents.yaml`
+- Analysis tasks: `src/wakastart_leads/crews/analysis/config/tasks.yaml`
+- Search config: `src/wakastart_leads/crews/search/config/agents.yaml`
+- Enrichment config: `src/wakastart_leads/crews/enrichment/config/agents.yaml`
 
 ## Project Overview
 
@@ -92,13 +99,15 @@ src/wakastart_leads/
 | ACT | Agent | Modele LLM | Role |
 |-----|-------|------------|------|
 | 0+1 | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
-| 2+3 | `corporate_analyst_and_saas_qualifier` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.4) | Nationalite, annee creation, qualification technique SaaS |
-| 4 | `wakastart_sales_engineer` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
-| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page web Gamma avec logos dynamiques |
-| 5 | `lead_generation_expert` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.2) | Identification des 3 decideurs + enrichissement Kaspr |
+| 2+3 | `corporate_analyst_and_saas_qualifier` | `openai/gpt-4o` (temp 0.4) ** | Nationalite, annee creation, qualification technique SaaS |
+| 4 | `wakastart_sales_engineer` | `openai/gpt-4o` (temp 0.6) ** | Scoring pertinence (0-100%), angle d'attaque commercial |
+| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page Gamma + raccourcissement URL Linkener |
+| 5 | `lead_generation_expert` | `openai/gpt-4o` (temp 0.2) ** | Identification des 3 decideurs + enrichissement Kaspr |
 | Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
-**Tools specifiques** : `gamma_tool.py`, `kaspr_tool.py` (dans `crews/analysis/tools/`)
+**\*\* Note temporaire** : Ces 3 agents utilisent GPT-4o au lieu de `anthropic/claude-sonnet-4-5-20250929` (limite API atteinte). Rebasculer vers Claude quand les quotas seront augmentes.
+
+**Tools specifiques** : `gamma_tool.py` (avec Linkener), `kaspr_tool.py` (dans `crews/analysis/tools/`)
 
 ### Crew 2 : Search (`src/wakastart_leads/crews/search/`)
 
@@ -140,8 +149,22 @@ src/wakastart_leads/
 | `src/wakastart_leads/crews/search/crew.py` | SearchCrew (1 agent, 3 taches) |
 | `src/wakastart_leads/crews/enrichment/crew.py` | EnrichmentCrew (1 agent, 1 tache) |
 | `src/wakastart_leads/shared/tools/pappers_tool.py` | PappersSearchTool |
-| `src/wakastart_leads/crews/analysis/tools/gamma_tool.py` | GammaCreateTool |
+| `src/wakastart_leads/crews/analysis/tools/gamma_tool.py` | GammaCreateTool (avec Linkener) |
 | `src/wakastart_leads/crews/analysis/tools/kaspr_tool.py` | KasprEnrichTool |
+
+### GammaCreateTool - Methodes internes
+
+Le `GammaCreateTool` integre plusieurs fonctionnalites :
+
+| Methode | Description |
+|---------|-------------|
+| `_build_enhanced_prompt()` | Construit le prompt Gamma avec instructions de dimensionnement logos (60-80px) |
+| `_sanitize_slug(name)` | Convertit un nom d'entreprise en slug URL-safe (`France-Care` → `france-care`) |
+| `_get_linkener_token(api_base, username, password)` | Authentification API Linkener, retourne un token JWT |
+| `_create_linkener_url(gamma_url, company_name)` | Cree une URL courte Linkener, gere les collisions (409) avec suffixe |
+| `_run(company_name, ...)` | Workflow complet : creation Gamma → raccourcissement Linkener (optionnel) |
+
+**Fallback** : Si Linkener n'est pas configure (variables env absentes), l'URL Gamma brute est retournee.
 
 ### Input Format
 
@@ -181,7 +204,7 @@ Fichier : `company_report.csv` (23 colonnes, UTF-8 BOM)
 | H-L | Decideur 1 | Nom, Titre, Email, Telephone, LinkedIn |
 | M-Q | Decideur 2 | Idem |
 | R-V | Decideur 3 | Idem |
-| W | Page Gamma | URL Gamma generee |
+| W | Page Gamma | URL courte Linkener ou URL Gamma brute |
 
 ### Logging
 
@@ -196,12 +219,22 @@ Chaque crew genere ses logs dans son propre dossier :
 
 Requires `.env` file with:
 ```bash
-OPENAI_API_KEY=...          # Required
-ANTHROPIC_API_KEY=...       # Required
-SERPER_API_KEY=...          # Required
-PAPPERS_API_KEY=...         # Optional
-KASPR_API_KEY=...           # Optional
-GAMMA_API_KEY=...           # Optional
+# APIs LLM (Required)
+OPENAI_API_KEY=...          # Required - GPT-4o
+ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
+
+# API Recherche (Required)
+SERPER_API_KEY=...          # Required - Recherche Google
+
+# APIs Enrichissement (Optional)
+PAPPERS_API_KEY=...         # Optional - Donnees legales
+KASPR_API_KEY=...           # Optional - Contacts LinkedIn
+GAMMA_API_KEY=...           # Optional - Pages web Gamma
+
+# Linkener - URL Shortener (Optional)
+LINKENER_API_BASE=https://url.wakastart.com/api
+LINKENER_USERNAME=...       # Si absent, URLs Gamma brutes
+LINKENER_PASSWORD=...
 ```
 
 ## Tests

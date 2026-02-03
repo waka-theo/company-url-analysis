@@ -24,12 +24,22 @@ crewai install
 Creer un fichier `.env` a la racine :
 
 ```bash
+# APIs LLM (Required)
 OPENAI_API_KEY=...          # Required - GPT-4o
 ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
+
+# API Recherche (Required)
 SERPER_API_KEY=...          # Required - Recherche web
+
+# APIs Enrichissement (Optional)
 PAPPERS_API_KEY=...         # Optional - Donnees legales entreprises
 KASPR_API_KEY=...           # Optional - Enrichissement contacts (email + telephone)
 GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
+
+# Linkener - URL Shortener (Optional)
+LINKENER_API_BASE=https://url.wakastart.com/api
+LINKENER_USERNAME=...       # Optional - Si absent, URLs Gamma brutes utilisees
+LINKENER_PASSWORD=...       # Optional
 ```
 
 ## Utilisation
@@ -96,13 +106,15 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilatio
 | Etape | Agent | Modele LLM | Role |
 |-------|-------|------------|------|
 | ACT 0+1 | Expert Intelligence Economique | GPT-4o (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
-| ACT 2+3 | Analyste Donnees & Architecte Solutions | Claude Sonnet 4.5 (temp 0.4) | Nationalite, annee creation, qualification SaaS |
-| ACT 4 | Ingenieur Commercial WakaStart | Claude Sonnet 4.5 (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
-| Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page web Gamma avec logos dynamiques |
-| ACT 5 | Expert Lead Generation | Claude Sonnet 4.5 (temp 0.2) | Identification decideurs + enrichissement Kaspr (email, telephone) |
+| ACT 2+3 | Analyste Donnees & Architecte Solutions | GPT-4o (temp 0.4) * | Nationalite, annee creation, qualification SaaS |
+| ACT 4 | Ingenieur Commercial WakaStart | GPT-4o (temp 0.6) * | Scoring pertinence (0-100%), angle d'attaque commercial |
+| Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page Gamma + raccourcissement URL via Linkener |
+| ACT 5 | Expert Lead Generation | GPT-4o (temp 0.2) * | Identification decideurs + enrichissement Kaspr (email, telephone) |
 | Final | Data Compiler | GPT-4o (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
-**Tools specifiques** : `GammaCreateTool`, `KasprEnrichTool`
+*\* Note : Ces agents utilisent temporairement GPT-4o au lieu de Claude Sonnet 4.5 (limite API). A rebasculer quand les quotas seront augmentes.*
+
+**Tools specifiques** : `GammaCreateTool` (avec integration Linkener), `KasprEnrichTool`
 
 ### Crew 2 : Recherche d'URLs
 
@@ -146,7 +158,19 @@ Colonnes ajoutees :
 | **SerperDevTool** | CrewAI built-in | Recherche Google via API Serper |
 | **PappersSearchTool** | `shared/tools/` | Donnees legales entreprises (SIREN, dirigeants, CA) |
 | **KasprEnrichTool** | `crews/analysis/tools/` | Enrichissement contacts via LinkedIn |
-| **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web via API Gamma |
+| **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web Gamma + raccourcissement URL Linkener |
+
+#### GammaCreateTool - Fonctionnalites
+
+Le `GammaCreateTool` integre desormais :
+
+1. **Dimensionnement harmonise des logos** : Instructions explicites pour que les 3 logos de la title card (entreprise, Opportunity Analysis, WakaStellar) aient une hauteur uniforme de 60-80px
+
+2. **Integration Linkener** (optionnel) : Raccourcissement automatique des URLs Gamma
+   - Convertit les noms d'entreprise en slugs URL-safe (`France-Care` → `france-care`)
+   - Genere des URLs courtes : `https://url.wakastart.com/france-care`
+   - Gestion des collisions (ajout de suffixe numerique si slug deja pris)
+   - Fallback automatique vers l'URL Gamma brute si Linkener non configure
 
 ## Output CSV
 
@@ -157,7 +181,7 @@ Fichier : `crews/analysis/output/company_report.csv` (UTF-8 BOM pour Excel)
 - **SaaS** : Description solution (max 20 mots)
 - **Scoring** : Pertinence (0-100%), Strategie & Angle d'attaque commercial
 - **Decideurs** (x3) : Nom, Titre, Email, Telephone, LinkedIn
-- **Page Gamma** : URL de la page web Gamma generee
+- **Page Gamma** : URL courte Linkener (`https://url.wakastart.com/nom-entreprise`) ou URL Gamma brute si Linkener non configure
 
 ## Scoring WakaStart
 
@@ -181,7 +205,12 @@ Chaque crew genere ses logs dans son propre dossier `output/logs/` :
 
 ## Tests
 
-179 tests unitaires avec pytest couvrant les 3 crews, les 3 tools custom et les utilitaires.
+~200 tests unitaires avec pytest couvrant les 3 crews, les 3 tools custom et les utilitaires.
+
+Tests recents ajoutes pour `GammaCreateTool` :
+- `TestSanitizeSlug` (7 tests) - Conversion noms → slugs URL-safe
+- `TestGetLinkenerToken` (4 tests) - Authentification Linkener
+- `TestCreateLinkenerUrl` (5 tests) - Creation URLs courtes + gestion collisions
 
 ```bash
 pytest                           # Tous les tests

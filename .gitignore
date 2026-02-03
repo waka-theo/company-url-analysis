@@ -11,10 +11,15 @@ output/
 .coverage
 tests/__pycache__/
 tests/**/__pycache__/
+scripts/
 
 # Outputs des crews
 src/wakastart_leads/crews/*/output/logs/
 src/wakastart_leads/crews/*/output/backups/
 src/wakastart_leads/crews/*/output/*.csv
 src/wakastart_leads/crews/*/output/*.json
-!src/wakastart_leads/crews/*/output/.gitkeepCLAUDE.local.md
+!src/wakastart_leads/crews/*/output/.gitkeep
+
+# Claude Code (fichiers locaux avec secrets)
+CLAUDE.local.md
+.mcp.json

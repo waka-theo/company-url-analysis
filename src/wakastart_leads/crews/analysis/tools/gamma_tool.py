@@ -23,6 +23,12 @@ OPPORTUNITY_ANALYSIS_IMAGE_URL = (
 UNAVATAR_BASE = "https://unavatar.io"
 GOOGLE_FAVICON_BASE = "https://www.google.com/s2/favicons?domain={domain}&sz=128"
 
+# Proxy de transformation d'images (wsrv.nl - gratuit, sans cle API)
+# Permet de redimensionner les logos pour harmoniser l'affichage dans Gamma
+IMAGE_PROXY_BASE = "https://wsrv.nl"
+LOGO_TARGET_WIDTH = 150
+LOGO_TARGET_HEIGHT = 80
+
 
 class GammaCreateInput(BaseModel):
     """Input schema for GammaCreateTool."""
@@ -72,6 +78,18 @@ class GammaCreateTool(BaseTool):
     )
     args_schema: type[BaseModel] = GammaCreateInput
 
+    def _resize_logo_via_proxy(self, original_url: str) -> str:
+        """Redimensionne un logo via le proxy wsrv.nl pour harmoniser l'affichage."""
+        from urllib.parse import quote
+
+        # wsrv.nl params: w=width, h=height, fit=contain (garde proportions), output=png
+        resized_url = (
+            f"{IMAGE_PROXY_BASE}/?url={quote(original_url, safe='')}"
+            f"&w={LOGO_TARGET_WIDTH}&h={LOGO_TARGET_HEIGHT}"
+            f"&fit=contain&output=png"
+        )
+        return resized_url
+
     def _resolve_company_logo(self, domain: str, company_name: str) -> str:
         """Resout l'URL du logo de l'entreprise via Unavatar puis Google Favicon."""
         clean_domain = domain.strip().lower()
@@ -82,21 +100,27 @@ class GammaCreateTool(BaseTool):
             print(f"[GAMMA DEBUG] Domaine vide pour {company_name}, pas de logo")
             return ""
 
+        original_logo_url: str | None = None
+
         # Strategie 1 : Unavatar (gratuit, sans cle API, agrege plusieurs sources)
         unavatar_url = f"{UNAVATAR_BASE}/{clean_domain}"
         try:
             response = requests.head(unavatar_url, timeout=5, allow_redirects=True)
             if response.status_code == 200:
                 print(f"[GAMMA DEBUG] Logo Unavatar trouve pour {clean_domain}")
-                return unavatar_url
-            print(f"[GAMMA DEBUG] Unavatar HTTP {response.status_code} pour {clean_domain}")
+                original_logo_url = unavatar_url
         except requests.exceptions.RequestException as e:
             print(f"[GAMMA DEBUG] Unavatar erreur pour {clean_domain}: {e}")
 
-        # Strategie 2 : Google Favicon (fallback 128px)
-        google_url = GOOGLE_FAVICON_BASE.format(domain=clean_domain)
-        print(f"[GAMMA DEBUG] Fallback Google Favicon pour {clean_domain}")
-        return google_url
+        # Strategie 2 : Google Favicon (fallback)
+        if not original_logo_url:
+            original_logo_url = GOOGLE_FAVICON_BASE.format(domain=clean_domain)
+            print(f"[GAMMA DEBUG] Fallback Google Favicon pour {clean_domain}")
+
+        # Redimensionner via proxy pour harmoniser l'affichage (150x80px)
+        resized_url = self._resize_logo_via_proxy(original_logo_url)
+        print(f"[GAMMA DEBUG] Logo redimensionne: {LOGO_TARGET_WIDTH}x{LOGO_TARGET_HEIGHT}px")
+        return resized_url
 
     def _build_enhanced_prompt(
         self,
