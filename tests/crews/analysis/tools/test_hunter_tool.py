@@ -97,3 +97,79 @@ class TestSortContacts:
         ]
         result = hunter_tool._sort_contacts(contacts)
         assert len(result) == 3
+
+
+# ===========================================================================
+# Tests _format_decideurs
+# ===========================================================================
+
+
+class TestFormatDecideurs:
+    def test_full_data(self, hunter_tool):
+        """Formate correctement un contact complet."""
+        contacts = [
+            {
+                "first_name": "Patrick",
+                "last_name": "Collison",
+                "position": "CEO",
+                "value": "patrick@stripe.com",
+                "phone_number": "+1 555 123 4567",
+                "linkedin": "patrickcollison",
+            }
+        ]
+        result = hunter_tool._format_decideurs(contacts, "Stripe")
+        assert len(result["decideurs"]) == 3
+        d1 = result["decideurs"][0]
+        assert d1["nom"] == "Patrick Collison"
+        assert d1["titre"] == "CEO"
+        assert d1["email"] == "patrick@stripe.com"
+        assert d1["telephone"] == "+1 555 123 4567"
+        assert d1["linkedin"] == "https://www.linkedin.com/in/patrickcollison"
+
+    def test_missing_fields(self, hunter_tool):
+        """Gere les champs manquants avec Non trouve."""
+        contacts = [
+            {
+                "first_name": "Jean",
+                "last_name": None,
+                "position": None,
+                "value": "jean@test.com",
+                "phone_number": None,
+                "linkedin": None,
+            }
+        ]
+        result = hunter_tool._format_decideurs(contacts, "TestCo")
+        d1 = result["decideurs"][0]
+        assert d1["nom"] == "Jean"
+        assert d1["titre"] == "Non trouve"
+        assert d1["telephone"] == "Non trouve"
+        assert d1["linkedin"] == "Non trouve"
+
+    def test_pads_to_3_decideurs(self, hunter_tool):
+        """Complete toujours a 3 decideurs."""
+        contacts = [
+            {
+                "first_name": "Solo",
+                "last_name": "Person",
+                "position": "CEO",
+                "value": "solo@test.com",
+                "phone_number": None,
+                "linkedin": None,
+            }
+        ]
+        result = hunter_tool._format_decideurs(contacts, "TestCo")
+        assert len(result["decideurs"]) == 3
+        assert result["decideurs"][0]["nom"] == "Solo Person"
+        assert result["decideurs"][1]["nom"] == "Non trouve"
+        assert result["decideurs"][2]["nom"] == "Non trouve"
+
+    def test_empty_contacts(self, hunter_tool):
+        """Gere une liste vide de contacts."""
+        result = hunter_tool._format_decideurs([], "EmptyCo")
+        assert result["contacts_found"] == 0
+        assert all(d["nom"] == "Non trouve" for d in result["decideurs"])
+
+    def test_company_in_result(self, hunter_tool):
+        """Le nom de l'entreprise est dans le resultat."""
+        result = hunter_tool._format_decideurs([], "MyCompany")
+        assert result["company"] == "MyCompany"
