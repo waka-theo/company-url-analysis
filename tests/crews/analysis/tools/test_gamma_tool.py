@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from pydantic import ValidationError
 
 from wakastart_leads.crews.analysis.tools.gamma_tool import (
     GAMMA_TEMPLATE_ID,
@@ -14,7 +15,6 @@ from wakastart_leads.crews.analysis.tools.gamma_tool import (
     GammaCreateInput,
     GammaCreateTool,
 )
-
 
 # ===========================================================================
 # Tests d'instanciation
@@ -46,11 +46,11 @@ class TestGammaCreateInput:
         assert input_data.company_domain == "testcorp.com"
 
     def test_missing_company_name_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             GammaCreateInput(prompt="Test", company_domain="test.com")
 
     def test_missing_company_domain_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             GammaCreateInput(prompt="Test", company_name="Test")
 
 
@@ -129,9 +129,7 @@ class TestBuildEnhancedPrompt:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
-            result = gamma_tool._build_enhanced_prompt(
-                "Base prompt", "testcorp.com", "TestCorp"
-            )
+            result = gamma_tool._build_enhanced_prompt("Base prompt", "testcorp.com", "TestCorp")
             assert "Base prompt" in result
             # Le logo entreprise est encapsule dans wsrv.nl pour redimensionnement
             assert "wsrv.nl" in result
@@ -143,9 +141,7 @@ class TestBuildEnhancedPrompt:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
-            result = gamma_tool._build_enhanced_prompt(
-                "Base prompt", "testcorp.com", "TestCorp"
-            )
+            result = gamma_tool._build_enhanced_prompt("Base prompt", "testcorp.com", "TestCorp")
             assert "LOGOS PREMIERE PAGE" in result
             assert "GAUCHE" in result
             assert "CENTRE" in result
@@ -164,9 +160,7 @@ class TestBuildEnhancedPrompt:
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
             original = "Mon prompt original avec du contenu important"
-            result = gamma_tool._build_enhanced_prompt(
-                original, "test.com", "Test"
-            )
+            result = gamma_tool._build_enhanced_prompt(original, "test.com", "Test")
             assert result.startswith(original)
 
     def test_includes_sizing_instructions(self, gamma_tool):
@@ -174,9 +168,7 @@ class TestBuildEnhancedPrompt:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch(self.PATCH_HEAD, return_value=mock_resp):
-            result = gamma_tool._build_enhanced_prompt(
-                "Base prompt", "testcorp.com", "TestCorp"
-            )
+            result = gamma_tool._build_enhanced_prompt("Base prompt", "testcorp.com", "TestCorp")
             # Nouvelles instructions attendues
             assert "LOGOS PREMIERE PAGE" in result or "LOGOS" in result
             assert "60-80px" in result or "meme hauteur" in result.lower()
@@ -281,7 +273,9 @@ class TestGammaRun:
             result = gamma_tool._run(self.SAMPLE_PROMPT, self.SAMPLE_NAME, self.SAMPLE_DOMAIN)
             assert "gamma.app" in result
 
-    def test_correct_payload_uses_enhanced_prompt(self, gamma_tool, mock_gamma_api_key, mock_response, gamma_completed_status):
+    def test_correct_payload_uses_enhanced_prompt(
+        self, gamma_tool, mock_gamma_api_key, mock_response, gamma_completed_status
+    ):
         post_response = mock_response(200, {"generationId": "gen_payload"})
         get_response = mock_response(200, gamma_completed_status)
         with (
@@ -317,18 +311,19 @@ class TestGammaRun:
             payload = first_call.kwargs.get("json") or first_call[1].get("json")
             assert payload["gammaId"] == "g_w56csm22x0u632h"
 
-    @patch.dict(os.environ, {
-        "GAMMA_API_KEY": "test-key",
-        "LINKENER_API_BASE": "https://url.wakastart.com/api",
-        "LINKENER_USERNAME": "testuser",
-        "LINKENER_PASSWORD": "testpass",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "GAMMA_API_KEY": "test-key",
+            "LINKENER_API_BASE": "https://url.wakastart.com/api",
+            "LINKENER_USERNAME": "testuser",
+            "LINKENER_PASSWORD": "testpass",
+        },
+    )
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.get")
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.head")
-    def test_returns_linkener_url_when_available(
-        self, mock_head, mock_get, mock_post
-    ):
+    def test_returns_linkener_url_when_available(self, mock_head, mock_get, mock_post):
         """Retourne l'URL Linkener si la creation reussit."""
         # Mock HEAD pour le logo
         mock_head.return_value = MagicMock(status_code=200)
@@ -352,10 +347,7 @@ class TestGammaRun:
         # Mock GET pour polling status (gammaUrl au premier niveau)
         mock_status = MagicMock()
         mock_status.status_code = 200
-        mock_status.json.return_value = {
-            "status": "completed",
-            "gammaUrl": "https://gamma.app/docs/test123"
-        }
+        mock_status.json.return_value = {"status": "completed", "gammaUrl": "https://gamma.app/docs/test123"}
         mock_get.return_value = mock_status
 
         tool = GammaCreateTool()
@@ -405,7 +397,7 @@ class TestPollGenerationStatus:
             result = gamma_tool._poll_generation_status("fb_id", "test-key")
             assert result == "https://gamma.app/docs/fallback"
 
-    def test_docUrl_fallback(self, gamma_tool, mock_response):
+    def test_doc_url_fallback(self, gamma_tool, mock_response):
         resp = mock_response(200, {"status": "completed", "docUrl": "https://gamma.app/docs/doc123"})
         with patch(self.PATCH_GET, return_value=resp), patch(self.PATCH_SLEEP):
             result = gamma_tool._poll_generation_status("doc_id", "test-key")
@@ -540,9 +532,7 @@ class TestGetLinkenerToken:
         mock_response.text = "abc123token"
         mock_post.return_value = mock_response
 
-        token = gamma_tool._get_linkener_token(
-            "https://url.wakastart.com/api", "user", "pass"
-        )
+        token = gamma_tool._get_linkener_token("https://url.wakastart.com/api", "user", "pass")
 
         assert token == "abc123token"
         mock_post.assert_called_once_with(
@@ -558,9 +548,7 @@ class TestGetLinkenerToken:
         mock_response.status_code = 401
         mock_post.return_value = mock_response
 
-        token = gamma_tool._get_linkener_token(
-            "https://url.wakastart.com/api", "user", "wrongpass"
-        )
+        token = gamma_tool._get_linkener_token("https://url.wakastart.com/api", "user", "wrongpass")
 
         assert token is None
 
@@ -569,9 +557,7 @@ class TestGetLinkenerToken:
         """Retourne None si une exception reseau se produit."""
         mock_post.side_effect = requests.exceptions.RequestException("Network error")
 
-        token = gamma_tool._get_linkener_token(
-            "https://url.wakastart.com/api", "user", "pass"
-        )
+        token = gamma_tool._get_linkener_token("https://url.wakastart.com/api", "user", "pass")
 
         assert token is None
 
@@ -584,9 +570,7 @@ class TestGetLinkenerToken:
 
         mock_post.return_value = mock_response
 
-        token = gamma_tool._get_linkener_token(
-            "https://url.wakastart.com/api", "user", "pass"
-        )
+        token = gamma_tool._get_linkener_token("https://url.wakastart.com/api", "user", "pass")
 
         assert token is None
 
@@ -603,11 +587,14 @@ class TestCreateLinkenerUrl:
     def gamma_tool(self):
         return GammaCreateTool()
 
-    @patch.dict(os.environ, {
-        "LINKENER_API_BASE": "https://url.wakastart.com/api",
-        "LINKENER_USERNAME": "testuser",
-        "LINKENER_PASSWORD": "testpass",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "LINKENER_API_BASE": "https://url.wakastart.com/api",
+            "LINKENER_USERNAME": "testuser",
+            "LINKENER_PASSWORD": "testpass",
+        },
+    )
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
     def test_creates_short_url_on_success(self, mock_post, gamma_tool):
         """Cree un lien court et retourne l'URL complete."""
@@ -622,25 +609,24 @@ class TestCreateLinkenerUrl:
 
         mock_post.side_effect = [mock_auth_response, mock_url_response]
 
-        result = gamma_tool._create_linkener_url(
-            "https://gamma.app/docs/xxx", "France Care"
-        )
+        result = gamma_tool._create_linkener_url("https://gamma.app/docs/xxx", "France Care")
 
         assert result == "https://url.wakastart.com/france-care"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_returns_none_when_env_vars_missing(self, gamma_tool):
         """Retourne None si les variables d'environnement manquent."""
-        result = gamma_tool._create_linkener_url(
-            "https://gamma.app/docs/xxx", "TestCorp"
-        )
+        result = gamma_tool._create_linkener_url("https://gamma.app/docs/xxx", "TestCorp")
         assert result is None
 
-    @patch.dict(os.environ, {
-        "LINKENER_API_BASE": "https://url.wakastart.com/api",
-        "LINKENER_USERNAME": "testuser",
-        "LINKENER_PASSWORD": "testpass",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "LINKENER_API_BASE": "https://url.wakastart.com/api",
+            "LINKENER_USERNAME": "testuser",
+            "LINKENER_PASSWORD": "testpass",
+        },
+    )
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
     def test_returns_none_when_auth_fails(self, mock_post, gamma_tool):
         """Retourne None si l'authentification echoue."""
@@ -648,17 +634,18 @@ class TestCreateLinkenerUrl:
         mock_response.status_code = 401
         mock_post.return_value = mock_response
 
-        result = gamma_tool._create_linkener_url(
-            "https://gamma.app/docs/xxx", "TestCorp"
-        )
+        result = gamma_tool._create_linkener_url("https://gamma.app/docs/xxx", "TestCorp")
 
         assert result is None
 
-    @patch.dict(os.environ, {
-        "LINKENER_API_BASE": "https://url.wakastart.com/api",
-        "LINKENER_USERNAME": "testuser",
-        "LINKENER_PASSWORD": "testpass",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "LINKENER_API_BASE": "https://url.wakastart.com/api",
+            "LINKENER_USERNAME": "testuser",
+            "LINKENER_PASSWORD": "testpass",
+        },
+    )
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.time.time", return_value=1234567890.123)
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
     def test_adds_suffix_on_slug_conflict(self, mock_post, mock_time, gamma_tool):
@@ -678,18 +665,19 @@ class TestCreateLinkenerUrl:
 
         mock_post.side_effect = [mock_auth, mock_conflict, mock_success]
 
-        result = gamma_tool._create_linkener_url(
-            "https://gamma.app/docs/xxx", "TestCorp"
-        )
+        result = gamma_tool._create_linkener_url("https://gamma.app/docs/xxx", "TestCorp")
 
         # Le suffixe est 1234567890 % 1000 = 890
         assert result == "https://url.wakastart.com/testcorp-890"
 
-    @patch.dict(os.environ, {
-        "LINKENER_API_BASE": "https://url.wakastart.com/api",
-        "LINKENER_USERNAME": "testuser",
-        "LINKENER_PASSWORD": "testpass",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "LINKENER_API_BASE": "https://url.wakastart.com/api",
+            "LINKENER_USERNAME": "testuser",
+            "LINKENER_PASSWORD": "testpass",
+        },
+    )
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.time.time", return_value=1234567890.123)
     @patch("wakastart_leads.crews.analysis.tools.gamma_tool.requests.post")
     def test_returns_none_on_retry_exception(self, mock_post, mock_time, gamma_tool):
@@ -710,8 +698,6 @@ class TestCreateLinkenerUrl:
             requests.exceptions.RequestException("Network error during retry"),
         ]
 
-        result = gamma_tool._create_linkener_url(
-            "https://gamma.app/docs/xxx", "TestCorp"
-        )
+        result = gamma_tool._create_linkener_url("https://gamma.app/docs/xxx", "TestCorp")
 
         assert result is None

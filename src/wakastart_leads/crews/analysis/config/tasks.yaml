@@ -18,24 +18,50 @@ extraction_and_macro_filtering:
        - Page "Produit", "Solution", "Tarifs" suggérant un modèle SaaS
     5. Noter les URLs non accessibles
 
+    ACT 1-BIS - EXTRACTION SIREN (OBLIGATOIRE) :
+    Pour CHAQUE entreprise valide, récupérer le numéro SIREN depuis les mentions légales :
+    1. Scraper la page "Mentions légales" du site. Chemins à tester dans l'ordre :
+       - /mentions-legales
+       - /mentions-legales/
+       - /legal
+       - /cgv
+       - /cgu
+       - Chercher un lien "Mentions légales" dans le footer de la page d'accueil
+    2. Chercher le numéro SIREN dans le contenu (9 chiffres consécutifs ou espacés)
+       Patterns à détecter : "SIREN : XXX XXX XXX", "SIREN: XXXXXXXXX", "RCS [Ville] XXX XXX XXX",
+       "N° SIREN", "Immatriculation", "Numéro d'identification"
+    3. Si le SIREN n'est pas trouvé dans les mentions légales, chercher dans :
+       - Page "À propos" / "Qui sommes-nous"
+       - Page "Contact"
+       - Conditions générales (CGV/CGU)
+    4. IMPORTANT : Le SIREN est CRITIQUE pour identifier correctement l'entreprise.
+       Il permet d'éviter les confusions avec des homonymes lors de la recherche Pappers.
+
     Exemple de référence : France-Care.fr (Service de conciergerie -> Développement d'un CRM métier après levée de fonds)
   expected_output: >
     Une liste structurée pour chaque URL contenant :
     - URL originale
     - Statut de validation (valid/invalid)
     - Nom de l'entreprise extrait
+    - SIREN extrait (9 chiffres, format XXX XXX XXX) ou "Non trouvé" si introuvable
     - Indices SaaS détectés (liste des signaux trouvés ou "Aucun indice SaaS" si rien détecté)
     - Secteur d'activité apparent
 
     Format clair indiquant les URLs traitées avec succès et celles avec problèmes.
+    Le SIREN est OBLIGATOIRE pour les agents suivants - ne jamais l'omettre.
   agent: economic_intelligence_analyst
 origin_identification_and_saas_qualification:
   description: |-
     Pour chaque entreprise valide identifiée à l'étape précédente :
 
     ACT 2 - Identification Origine & Ancrage :
-    1. Année de création : Identifier la date d'immatriculation principale.
-       Si pivot majeur (ex: agence devenue éditeur), noter l'année du pivot.
+    1. Année de création :
+       - UTILISER LE SIREN fourni par la tâche précédente pour rechercher via Pappers
+       - Si un SIREN a été extrait (9 chiffres), appeler pappers_search avec ce SIREN directement
+       - IMPORTANT : NE PAS rechercher par nom d'entreprise pour éviter les confusions avec les homonymes
+       - Si aucun SIREN n'a été trouvé, utiliser le nom en dernier recours
+       - Identifier la date d'immatriculation principale. Si pivot majeur
+         (ex: agence devenue éditeur), noter l'année du pivot.
     2. Nationalité :
        - Si Siège social = France → FR
        - Si Siège étranger mais présence tech/commerciale forte en France → INT (Lien FR)
@@ -54,10 +80,12 @@ origin_identification_and_saas_qualification:
     4. Rédiger un résumé concis de la solution (MAXIMUM 20 mots)
        Exemples : "CRM spécialisé santé", "ERP pour PME industrielles", "Plateforme de gestion RH"
 
+    IMPORTANT : Toujours utiliser le SIREN fourni par ACT 1-BIS pour la recherche Pappers.
     Utiliser des sources fiables et croiser les informations pour assurer la précision.
   expected_output: >
     Pour chaque entreprise, fournir :
     - Nom de l'entreprise
+    - SIREN utilisé pour la recherche Pappers
     - Année de création (YYYY) ou "Unknown"
     - Nationalité (FR, INT (Lien FR), US, UK, etc.) ou "Unknown"
     - Typologie SaaS (Pur SaaS, Marketplace, Legacy, Hybrid)
@@ -75,36 +103,55 @@ commercial_analysis:
 
     Pour chaque entreprise qualifiée, analyser le potentiel commercial WakaStart :
 
+    ÉTAPE 0 - INVESTIGATION STACK TECHNIQUE (OBLIGATOIRE si non fournie) :
+    Si le contexte des tâches précédentes indique "stack non spécifiée" ou ne mentionne pas
+    la stack technique, vous DEVEZ investiguer activement :
+    1. Scraper la page "Carrières" / "Jobs" / "Recrutement" pour voir les offres d'emploi
+       (ex: "Développeur PHP" = stack PHP, "Dev React/Node" = stack moderne)
+    2. Scraper la page "À propos" ou "Notre technologie" pour les mentions techniques
+    3. Chercher via Serper "[nom entreprise] stack technique" ou "[nom entreprise] recrutement dev"
+
+    INDICES DE STACK VIEILLISSANTE :
+    - Offres d'emploi mentionnant PHP, Java EE, .NET Framework, jQuery seul
+    - Entreprise créée avant 2015 sans mention de refonte récente
+    - Absence totale de mention de technologies modernes (React, Vue, Node.js, Kubernetes)
+    - Design web daté, pas de SPA (Single Page Application)
+
     1. Analyse Financière & Historique :
-       - Rechercher les levées de fonds récentes (besoin d'accélération ?)
-       - Identifier l'absence d'évolution depuis longtemps (besoin de refonte Legacy ?)
+       - Rechercher les levées de fonds récentes via Serper (besoin d'accélération ?)
+       - Identifier l'absence d'évolution depuis 5+ ans (besoin de refonte Legacy ?)
+       - Utiliser PappersSearchTool pour les données financières si SIREN disponible
        - Évaluer la maturité de l'entreprise (StartUp, ScaleUp, Legacy)
 
     2. Matching WakaStart - Croiser les "douleurs" probables avec les solutions :
        - Startup Santé → Besoin HDS/ISO27001 → Score élevé
-       - Vieux logiciel desktop → Besoin migration Cloud/SaaS → Score élevé
-       - Stack PHP/Python ancienne → Besoin Migration Pack → Score élevé
+       - Stack vieillissante détectée → Besoin Migration Pack → Score élevé
        - Scaling difficile → Besoin infrastructure Kubernetes → Score élevé
 
-    3. Calculer le Score de Pertinence (0-100%) :
-       - 90-100% : Santé (besoin HDS) + stack vieillissante
+    3. Calculer le Score de Pertinence (0-100%) - APPLIQUER RIGOUREUSEMENT :
+       - 90-100% : Santé (besoin HDS) + stack vieillissante OU entreprise santé créée avant 2018
        - 80-90% : Finance/B2B grands comptes + besoin ISO 27001/NIS2
        - 70-80% : Levée de fonds récente + besoin accélération dev
        - 60-70% : Stack PHP/Python legacy + pas d'évolution 5+ ans
        - 50-60% : SaaS B2B avec besoin multi-tenant/marque blanche
        - <50% : Pas de SaaS clair ou pas d'ancrage France
 
-    4. Rédiger l'Angle d'Attaque pour le commercial :
-       - Identifier le levier principal (dette technique, sécurité, time-to-market, etc.)
-       - Formuler une phrase d'accroche contextuelle
-       Exemple : "Approcher sur l'angle de la dette technique et de la conformité NIS2"
+       RÈGLE SANTÉ : Une entreprise SANTÉ créée avant 2018 a une forte probabilité
+       de stack vieillissante (dette technique accumulée)
+
+    4. Rédiger l'Angle d'Attaque DÉTAILLÉ pour le commercial :
+       - Identifier le levier PRINCIPAL (dette technique, conformité HDS, scalabilité)
+       - Mentionner le levier SECONDAIRE si pertinent
+       - Formuler une phrase d'accroche SPÉCIFIQUE au prospect
+       Exemple : "Approcher sur l'angle de la conformité HDS (obligatoire secteur santé) + dette technique probable (créée en 2013, stack non modernisée)"
 
   expected_output: >
     Pour chaque entreprise, fournir :
     - Nom de l'entreprise
-    - Score de Pertinence (pourcentage 0-100)
-    - Justification du score (2-3 raisons clés)
-    - Angle d'attaque commercial (1 phrase actionnable)
+    - Stack technique détectée (ou "Non détectée" avec les sources consultées)
+    - Score de Pertinence (pourcentage 0-100) avec justification du barème utilisé
+    - Justification du score (3-4 raisons clés avec preuves)
+    - Angle d'attaque commercial DÉTAILLÉ (levier principal + secondaire)
     - Offres WakaStart recommandées (liste des produits pertinents)
 
   agent: wakastart_sales_engineer

@@ -5,11 +5,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
+from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool
 from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
-
-from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool
-
 
 # ---------------------------------------------------------------------------
 # Fixtures d'environnement

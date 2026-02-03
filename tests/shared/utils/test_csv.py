@@ -3,8 +3,6 @@
 import csv
 from pathlib import Path
 
-import pytest
-
 from wakastart_leads.shared.utils.csv_utils import load_existing_csv, post_process_csv
 
 

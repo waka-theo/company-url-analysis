@@ -2,11 +2,9 @@
 
 from unittest.mock import patch
 
-import pytest
 import requests
 
-from wakastart_leads.shared.tools.pappers_tool import PappersSearchInput, PappersSearchTool
-
+from wakastart_leads.shared.tools.pappers_tool import PappersSearchInput
 
 # ===========================================================================
 # Tests d'instanciation
@@ -213,8 +211,7 @@ class TestFormatSearchResults:
 
     def test_max_5_results(self, pappers_tool):
         results = [
-            {"nom_entreprise": f"Corp{i}", "siren": f"10000000{i}", "siege": {"ville": "Paris"}}
-            for i in range(10)
+            {"nom_entreprise": f"Corp{i}", "siren": f"10000000{i}", "siege": {"ville": "Paris"}} for i in range(10)
         ]
         data = {"resultats_nom_entreprise": results}
         result = pappers_tool._format_search_results(data, "Corp")

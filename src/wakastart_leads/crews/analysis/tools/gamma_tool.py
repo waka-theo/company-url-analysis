@@ -15,9 +15,7 @@ GAMMA_API_BASE = "https://public-api.gamma.app/v1.0"
 # URLs publiques des images statiques (GitHub Raw)
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/waka-theo/company-url-analysis/refs/heads/main/public"
 WAKASTELLAR_LOGO_URL = f"{GITHUB_RAW_BASE}/Logos-Wakstellar_Nom-full-blanc.png"
-OPPORTUNITY_ANALYSIS_IMAGE_URL = (
-    f"{GITHUB_RAW_BASE}/Gemini_Generated_Image_rzqb15rzqb15rzqb.png"
-)
+OPPORTUNITY_ANALYSIS_IMAGE_URL = f"{GITHUB_RAW_BASE}/Gemini_Generated_Image_rzqb15rzqb15rzqb.png"
 
 # APIs de resolution de logo entreprise
 UNAVATAR_BASE = "https://unavatar.io"
@@ -45,8 +43,7 @@ class GammaCreateInput(BaseModel):
     company_name: str = Field(
         ...,
         description=(
-            "Nom commercial de l'entreprise prospect. "
-            "Utilise pour rechercher dynamiquement le logo de l'entreprise."
+            "Nom commercial de l'entreprise prospect. Utilise pour rechercher dynamiquement le logo de l'entreprise."
         ),
     )
     company_domain: str = Field(
@@ -134,19 +131,13 @@ class GammaCreateTool(BaseTool):
         image_lines: list[str] = []
 
         if company_logo_url:
-            image_lines.append(
-                f"- A gauche, le logo de l'entreprise {company_name} : {company_logo_url}"
-            )
+            image_lines.append(f"- A gauche, le logo de l'entreprise {company_name} : {company_logo_url}")
 
         if OPPORTUNITY_ANALYSIS_IMAGE_URL:
-            image_lines.append(
-                f"- Au centre, l'image Opportunity Analysis : {OPPORTUNITY_ANALYSIS_IMAGE_URL}"
-            )
+            image_lines.append(f"- Au centre, l'image Opportunity Analysis : {OPPORTUNITY_ANALYSIS_IMAGE_URL}")
 
         if WAKASTELLAR_LOGO_URL:
-            image_lines.append(
-                f"- A droite, le logo WakaStellar : {WAKASTELLAR_LOGO_URL}"
-            )
+            image_lines.append(f"- A droite, le logo WakaStellar : {WAKASTELLAR_LOGO_URL}")
 
         if not image_lines:
             return original_prompt
@@ -155,8 +146,7 @@ class GammaCreateTool(BaseTool):
         company_logo_line = ""
         if company_logo_url:
             company_logo_line = (
-                f"- GAUCHE : Logo {company_name} (redimensionner pour correspondre aux autres) : "
-                f"{company_logo_url}\n"
+                f"- GAUCHE : Logo {company_name} (redimensionner pour correspondre aux autres) : {company_logo_url}\n"
             )
 
         image_section = (

@@ -2,11 +2,9 @@
 
 from unittest.mock import patch
 
-import pytest
 import requests
 
-from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichInput, KasprEnrichTool
-
+from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichInput
 
 # ===========================================================================
 # Tests d'instanciation
@@ -122,9 +120,7 @@ class TestFormatContactInfo:
 
     def test_nested_profile(self, kaspr_tool, kaspr_full_response):
         # kaspr_full_response est deja neste sous "profile"
-        result = kaspr_tool._format_contact_info(
-            kaspr_full_response, "Jean Dupont", "https://linkedin.com/in/jean"
-        )
+        result = kaspr_tool._format_contact_info(kaspr_full_response, "Jean Dupont", "https://linkedin.com/in/jean")
         assert "jean.dupont@company.com" in result
 
     def test_flat_response(self, kaspr_tool):
@@ -159,9 +155,7 @@ class TestFormatContactInfo:
         assert "JusteUneString" not in result
 
     def test_header_contains_name(self, kaspr_tool, kaspr_full_response):
-        result = kaspr_tool._format_contact_info(
-            kaspr_full_response, "Jean Dupont", "https://linkedin.com/in/jean"
-        )
+        result = kaspr_tool._format_contact_info(kaspr_full_response, "Jean Dupont", "https://linkedin.com/in/jean")
         assert result.startswith("**Contact: Jean Dupont**")
 
 

@@ -1,13 +1,10 @@
 """Tests unitaires pour main.py et les utilitaires."""
 
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from wakastart_leads.shared.utils import load_urls, normalize_url
-
 
 # ===========================================================================
 # Tests load_urls

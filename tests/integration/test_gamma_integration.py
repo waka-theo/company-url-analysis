@@ -24,11 +24,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from wakastart_leads.crews.analysis.tools.gamma_tool import (
+from wakastart_leads.crews.analysis.tools.gamma_tool import (  # noqa: E402
     UNAVATAR_BASE,
     GammaCreateTool,
 )
@@ -110,9 +110,7 @@ def test_2_3_6_missing_api_key() -> None:
         if expected_msg in result:
             report_pass(test_id, desc, f"Message : {result}")
         else:
-            report_fail(
-                test_id, desc, f"Attendu contenant '{expected_msg}', obtenu : {result}"
-            )
+            report_fail(test_id, desc, f"Attendu contenant '{expected_msg}', obtenu : {result}")
     finally:
         if original_key is not None:
             os.environ["GAMMA_API_KEY"] = original_key
@@ -132,7 +130,7 @@ def test_2_3_2_unavatar_logo_resolution() -> None:
 
     output = captured.getvalue()
     print(f"  Logo URL : {logo_url}")
-    print(f"  Logs captures :")
+    print("  Logs captures :")
     for line in output.strip().splitlines():
         print(f"    {line}")
 
@@ -173,7 +171,7 @@ def test_2_3_3_google_fallback_logo() -> None:
     output = captured.getvalue()
     print(f"  Domaine teste : {obscure_domain}")
     print(f"  Logo URL : {logo_url}")
-    print(f"  Logs captures :")
+    print("  Logs captures :")
     for line in output.strip().splitlines():
         print(f"    {line}")
 
@@ -250,9 +248,7 @@ def _test_2_3_4_page_accessibility(gamma_url: str | None) -> None:
     print("  - Aucun message 404 ou 'acces refuse'")
     print()
 
-    user_input = (
-        input("  La page est-elle accessible publiquement ? (o/n) : ").strip().lower()
-    )
+    user_input = input("  La page est-elle accessible publiquement ? (o/n) : ").strip().lower()
     if user_input in ("o", "oui", "y", "yes"):
         report_pass(test_id, desc)
     else:
@@ -272,7 +268,7 @@ def _test_2_3_5_three_images_first_page(gamma_url: str | None) -> None:
     print(f"  URL : {gamma_url}")
     print()
     print(f"  {BOLD}VERIFICATION MANUELLE :{RESET}")
-    print(f"  Sur la PREMIERE PAGE (title card), verifier :")
+    print("  Sur la PREMIERE PAGE (title card), verifier :")
     print(f"  1. {CYAN}Logo France Care{RESET} - a gauche")
     print(f"  2. {CYAN}Image Opportunity Analysis{RESET} - au centre")
     print(f"  3. {CYAN}Logo WakaStellar{RESET} (blanc) - a droite")
@@ -280,9 +276,7 @@ def _test_2_3_5_three_images_first_page(gamma_url: str | None) -> None:
     print("  (le navigateur devrait deja etre ouvert depuis le test 2.3.4)")
     print()
 
-    user_input = (
-        input("  Les 3 images sont-elles presentes ? (o/n) : ").strip().lower()
-    )
+    user_input = input("  Les 3 images sont-elles presentes ? (o/n) : ").strip().lower()
     if user_input in ("o", "oui", "y", "yes"):
         report_pass(test_id, desc)
     else:

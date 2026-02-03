@@ -4,5 +4,9 @@
       "mcp__chrome-devtools__click"
     ]
   },
-  "outputStyle": "Explanatory"
+  "enabledMcpjsonServers": [
+    "hunter-remote-mcp"
+  ],
+  "outputStyle": "Explanatory",
+  "enableAllProjectMcpServers": true
 }

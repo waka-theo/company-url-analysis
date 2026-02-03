@@ -100,13 +100,13 @@ src/wakastart_leads/
 ### Crew 1 : Analyse d'entreprises
 
 ```
-URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilation --> CSV (23 cols)
+URLs (JSON) --> ACT 0+1+1bis --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilation --> CSV (23 cols)
 ```
 
 | Etape | Agent | Modele LLM | Role |
 |-------|-------|------------|------|
-| ACT 0+1 | Expert Intelligence Economique | GPT-4o (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
-| ACT 2+3 | Analyste Donnees & Architecte Solutions | GPT-4o (temp 0.4) * | Nationalite, annee creation, qualification SaaS |
+| ACT 0+1+1bis | Expert Intelligence Economique | GPT-4o (temp 0.2) | Validation URLs, extraction nom, **extraction SIREN (mentions legales)**, detection SaaS cache |
+| ACT 2+3 | Analyste Donnees & Architecte Solutions | GPT-4o (temp 0.4) * | Nationalite, annee creation (via SIREN/Pappers), qualification SaaS |
 | ACT 4 | Ingenieur Commercial WakaStart | GPT-4o (temp 0.6) * | Scoring pertinence (0-100%), angle d'attaque commercial |
 | Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page Gamma + raccourcissement URL via Linkener |
 | ACT 5 | Expert Lead Generation | GPT-4o (temp 0.2) * | Identification decideurs + enrichissement Hunter.io (email, telephone) |

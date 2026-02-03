@@ -2,14 +2,11 @@
 
 from unittest.mock import patch
 
-import pytest
 import requests
 
 from wakastart_leads.crews.analysis.tools.hunter_tool import (
     HunterDomainSearchInput,
-    HunterDomainSearchTool,
 )
-
 
 # ===========================================================================
 # Tests d'instanciation
@@ -94,10 +91,7 @@ class TestSortContacts:
 
     def test_limit_to_3(self, hunter_tool):
         """Retourne maximum 3 contacts."""
-        contacts = [
-            {"seniority": "executive", "confidence": 90, "first_name": f"Exec{i}"}
-            for i in range(5)
-        ]
+        contacts = [{"seniority": "executive", "confidence": 90, "first_name": f"Exec{i}"} for i in range(5)]
         result = hunter_tool._sort_contacts(contacts)
         assert len(result) == 3
 
@@ -192,26 +186,20 @@ class TestHunterRun:
         result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
         assert "HUNTER_API_KEY non configuree" in result
 
-    def test_success_200(
-        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response
-    ):
+    def test_success_200(self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_domain_search_response)):
             result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
             assert "Patrick Collison" in result
             assert "patrick@stripe.com" in result
             assert "CEO" in result
 
-    def test_partial_results(
-        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_partial_response
-    ):
+    def test_partial_results(self, hunter_tool, mock_hunter_api_key, mock_response, hunter_partial_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_partial_response)):
             result = hunter_tool._run("smallco.com", "SmallCo")
             assert "Jean Dupont" in result
             assert "Non trouve" in result
 
-    def test_no_results(
-        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_empty_response
-    ):
+    def test_no_results(self, hunter_tool, mock_hunter_api_key, mock_response, hunter_empty_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_empty_response)):
             result = hunter_tool._run("unknown.com", "Unknown")
             assert "Aucun decideur trouve" in result
@@ -236,9 +224,7 @@ class TestHunterRun:
             result = hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
             assert "connexion" in result.lower()
 
-    def test_correct_api_params(
-        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response
-    ):
+    def test_correct_api_params(self, hunter_tool, mock_hunter_api_key, mock_response, hunter_domain_search_response):
         with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_domain_search_response)) as mock_get:
             hunter_tool._run(self.VALID_DOMAIN, self.VALID_COMPANY)
             call_args = mock_get.call_args
@@ -248,9 +234,7 @@ class TestHunterRun:
             assert "executive" in params["seniority"]
             assert "senior" in params["seniority"]
 
-    def test_sorts_by_seniority(
-        self, hunter_tool, mock_hunter_api_key, mock_response, hunter_needs_sorting_response
-    ):
+    def test_sorts_by_seniority(self, hunter_tool, mock_hunter_api_key, mock_response, hunter_needs_sorting_response):
         """Verifie que executive est en premier meme si confidence plus basse."""
         with patch(self.PATCH_TARGET, return_value=mock_response(200, hunter_needs_sorting_response)):
             result = hunter_tool._run("testco.com", "TestCo")

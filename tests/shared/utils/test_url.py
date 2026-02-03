@@ -1,9 +1,6 @@
 """Tests unitaires pour les fonctions URL dans shared/utils/url.py."""
 
-import pytest
-
 from wakastart_leads.shared.utils.url_utils import normalize_url
-
 
 # ===========================================================================
 # Tests normalize_url

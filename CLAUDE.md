@@ -98,8 +98,8 @@ src/wakastart_leads/
 
 | ACT | Agent | Modele LLM | Role |
 |-----|-------|------------|------|
-| 0+1 | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, detection SaaS cache |
-| 2+3 | `corporate_analyst_and_saas_qualifier` | `openai/gpt-4o` (temp 0.4) ** | Nationalite, annee creation, qualification technique SaaS |
+| 0+1+1bis | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, **extraction SIREN (mentions legales)**, detection SaaS cache |
+| 2+3 | `corporate_analyst_and_saas_qualifier` | `openai/gpt-4o` (temp 0.4) ** | Nationalite, annee creation (via SIREN), qualification technique SaaS |
 | 4 | `wakastart_sales_engineer` | `openai/gpt-4o` (temp 0.6) ** | Scoring pertinence (0-100%), angle d'attaque commercial |
 | Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page Gamma + raccourcissement URL Linkener |
 | 5 | `lead_generation_expert` | `openai/gpt-4o` (temp 0.2) ** | Identification des 3 decideurs + enrichissement Hunter.io |

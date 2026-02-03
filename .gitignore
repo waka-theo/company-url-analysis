@@ -5,7 +5,6 @@ docs/business/
 docs/*.pdf
 docs/*.txt
 docs/*.yaml
-.serena/
 .venv/
 output/
 .coverage

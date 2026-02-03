@@ -1,12 +1,6 @@
 """Tests unitaires pour les fonctions de recherche et URL."""
 
-import json
-from pathlib import Path
-
-import pytest
-
 from wakastart_leads.shared.utils.url_utils import normalize_url
-
 
 # ===========================================================================
 # Tests normalize_url (deja dans test_url.py mais aussi utilise ici)

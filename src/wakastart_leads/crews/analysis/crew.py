@@ -61,7 +61,7 @@ class AnalysisCrew:
         """ACT 4 : Ingenieur Commercial Senior WakaStart"""
         return Agent(
             config=self.agents_config["wakastart_sales_engineer"],
-            tools=[SerperDevTool(), PappersSearchTool()],
+            tools=[ScrapeWebsiteTool(), SerperDevTool(), PappersSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,

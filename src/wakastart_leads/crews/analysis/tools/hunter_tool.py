@@ -1,6 +1,7 @@
 """Hunter.io Domain Search Tool pour l'enrichissement des decideurs."""
 
 import os
+from typing import ClassVar
 
 import requests
 from crewai.tools import BaseTool
@@ -34,7 +35,7 @@ class HunterDomainSearchTool(BaseTool):
     args_schema: type[BaseModel] = HunterDomainSearchInput
 
     # Priorite de tri par seniority (plus petit = plus prioritaire)
-    SENIORITY_PRIORITY: dict[str, int] = {"executive": 1, "senior": 2}
+    SENIORITY_PRIORITY: ClassVar[dict[str, int]] = {"executive": 1, "senior": 2}
 
     def _build_linkedin_url(self, handle: str | None) -> str:
         """Construit l'URL LinkedIn complete a partir du handle."""
@@ -77,13 +78,15 @@ class HunterDomainSearchTool(BaseTool):
             last_name = contact.get("last_name") or ""
             full_name = f"{first_name} {last_name}".strip() or "Non trouve"
 
-            decideurs.append({
-                "nom": full_name,
-                "titre": contact.get("position") or "Non trouve",
-                "email": contact.get("value") or "Non trouve",
-                "telephone": contact.get("phone_number") or "Non trouve",
-                "linkedin": self._build_linkedin_url(contact.get("linkedin")),
-            })
+            decideurs.append(
+                {
+                    "nom": full_name,
+                    "titre": contact.get("position") or "Non trouve",
+                    "email": contact.get("value") or "Non trouve",
+                    "telephone": contact.get("phone_number") or "Non trouve",
+                    "linkedin": self._build_linkedin_url(contact.get("linkedin")),
+                }
+            )
 
         # Completer a 3 decideurs
         while len(decideurs) < 3:

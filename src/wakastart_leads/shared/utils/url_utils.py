@@ -9,7 +9,7 @@ def normalize_url(url: str) -> str:
     url = url.strip().lower().rstrip("/")
     for prefix in ("https://", "http://"):
         if url.startswith(prefix):
-            url = url[len(prefix):]
+            url = url[len(prefix) :]
             break
     if url.startswith("www."):
         url = url[4:]
