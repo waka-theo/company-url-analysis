@@ -36,6 +36,20 @@ class HunterDomainSearchTool(BaseTool):
     # Priorite de tri par seniority (plus petit = plus prioritaire)
     SENIORITY_PRIORITY: dict[str, int] = {"executive": 1, "senior": 2}
 
+    def _build_linkedin_url(self, handle: str | None) -> str:
+        """Construit l'URL LinkedIn complete a partir du handle."""
+        if not handle:
+            return "Non trouve"
+
+        # Si c'est deja une URL complete ou partielle
+        if "linkedin.com" in handle:
+            if handle.startswith("http"):
+                return handle
+            return f"https://www.{handle}" if not handle.startswith("www.") else f"https://{handle}"
+
+        # Sinon, c'est juste le handle
+        return f"https://www.linkedin.com/in/{handle}"
+
     def _run(self, domain: str, company_name: str) -> str:
         """Execute Hunter Domain Search."""
         # TODO: implementer dans Task 3
