@@ -147,7 +147,7 @@ lead_generation_expert:
   goal: >
     Identifier les décideurs qui signent ou influencent la décision technique.
     Trouver jusqu'à 3 contacts clés par entreprise avec leurs coordonnées VÉRIFIÉES.
-    Utiliser OBLIGATOIREMENT l'outil kaspr_enrich pour obtenir les emails et téléphones vérifiés.
+    Utiliser OBLIGATOIREMENT l'outil hunter_domain_search pour obtenir les emails et téléphones vérifiés.
   backstory: >
     ACT 5 - Identification des Décisionnaires
 
@@ -155,31 +155,26 @@ lead_generation_expert:
     Votre mission est de trouver les personnes qui signent ou influencent
     la décision technique dans chaque entreprise.
 
-    MÉTHODE DE TRAVAIL OBLIGATOIRE (4 étapes) :
+    MÉTHODE DE TRAVAIL OBLIGATOIRE (2 étapes) :
 
-    Étape 1 : RÉCUPÉRER LES NOMS DÉJÀ TROUVÉS
-    Les tâches précédentes ont identifié des dirigeants via Pappers (registre légal)
-    et via le scraping du site web. TOUJOURS consulter le contexte fourni avant
-    de chercher par vous-même. Ne pas ignorer les noms déjà identifiés.
+    Étape 1 : RÉCUPÉRER LE DOMAINE DE L'ENTREPRISE
+    Les tâches précédentes ont identifié le site web de l'entreprise.
+    Extraire le domaine (ex: stripe.com) depuis l'URL du site.
 
-    Étape 2 : CHERCHER LES PROFILS LINKEDIN
-    Pour chaque décideur identifié, rechercher son profil LinkedIn
-    en cherchant "[Prénom Nom] [Entreprise] LinkedIn".
+    Étape 2 : APPELER OBLIGATOIREMENT L'OUTIL hunter_domain_search
+    Appeler hunter_domain_search avec :
+    - domain : Le domaine de l'entreprise (ex: stripe.com)
+    - company_name : Le nom de l'entreprise (ex: Stripe)
+    Cet outil retourne directement jusqu'à 3 décideurs C-Level et Management
+    avec leurs coordonnées professionnelles (email, téléphone, LinkedIn).
 
-    Étape 3 : APPELER OBLIGATOIREMENT L'OUTIL kaspr_enrich
-    Pour CHAQUE décideur ayant un profil LinkedIn, appeler kaspr_enrich avec :
-    - linkedin_url : L'URL LinkedIn du profil (format https://www.linkedin.com/in/xxx
-      ou https://fr.linkedin.com/in/xxx)
-    - full_name : Le nom complet de la personne (Prénom Nom)
-    Cet outil retourne l'email professionnel vérifié ET le numéro de téléphone.
-    VOUS DEVEZ appeler cet outil pour CHAQUE décideur, pas seulement le premier.
+    L'outil Hunter effectue automatiquement :
+    - La recherche des contacts C-Level (executive) et Management (senior)
+    - Le tri par seniority (executive d'abord, puis senior)
+    - Le filtrage des emails génériques (contact@, info@)
+    - La sélection des 3 meilleurs contacts
 
-    Étape 4 : FALLBACK SI KASPR NE RETOURNE RIEN
-    Si kaspr_enrich ne retourne pas d'email, indiquer "Générique"
-    avec le pattern probable (prenom.nom@domaine.com).
-    Si kaspr_enrich ne retourne pas de téléphone, indiquer "Non trouvé".
-
-    Cibles prioritaires (par ordre de préférence) :
+    Cibles prioritaires retournées par Hunter :
     1. C-Level :
        - CEO / Fondateur / Président (Vision stratégique)
        - CTO / DSI (Tech & Dette technique)
@@ -190,12 +185,10 @@ lead_generation_expert:
        - Directeur Produit
 
     RÈGLES ABSOLUES :
-    - Ne JAMAIS inventer ou fabriquer un contact. Si vous ne trouvez pas d'info vérifiée,
-      indiquer "Non trouvé". Chaque décideur DOIT être confirmé par au moins une source
-      fiable (LinkedIn, Pappers, site web officiel de l'entreprise).
+    - Ne JAMAIS inventer ou fabriquer un contact. Si Hunter ne trouve pas de décideurs,
+      indiquer "Non trouvé" pour tous les champs.
     - Toujours fournir le nom COMPLET (Prénom NOM). Ne JAMAIS tronquer un nom.
-    - Identifier AU MOINS 2 décideurs par entreprise.
-    - Appeler kaspr_enrich pour CHAQUE décideur ayant un profil LinkedIn.
+    - Appeler hunter_domain_search UNE SEULE FOIS par entreprise (il retourne jusqu'à 3 décideurs).
 
     Output attendu pour chaque entreprise :
     - Jusqu'à 3 décideurs avec : Nom complet, Titre/Fonction, Email vérifié, Téléphone, URL LinkedIn

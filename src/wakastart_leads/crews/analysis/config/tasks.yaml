@@ -181,40 +181,34 @@ decision_makers_identification:
   description: |-
     ACT 5 - Identification des Décisionnaires
 
-    ÉTAPE PRÉALABLE OBLIGATOIRE :
-    Consulter le contexte des tâches précédentes. Les agents précédents ont DÉJÀ
-    identifié des dirigeants via Pappers (registre légal) et via le scraping du site web.
-    Tu DOIS récupérer ces noms et les enrichir, pas repartir de zéro.
+    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés via Hunter.io :
 
-    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés :
+    1. RÉCUPÉRER LE DOMAINE depuis le contexte des tâches précédentes :
+       - Extraire le domaine (ex: stripe.com) depuis l'URL du site web identifié en ACT 0+1
+       - Ne pas inclure https:// ni www., juste le domaine nu
 
-    1. Cibles prioritaires (par ordre de préférence) :
+    2. APPELER OBLIGATOIREMENT l'outil hunter_domain_search avec :
+       - domain : Le domaine de l'entreprise (ex: stripe.com)
+       - company_name : Le nom de l'entreprise (ex: Stripe)
+
+    3. L'outil Hunter retourne automatiquement jusqu'à 3 décideurs avec :
+       - Nom complet (Prénom NOM)
+       - Titre/Fonction exacte
+       - Email professionnel vérifié
+       - Numéro de téléphone professionnel
+       - URL du profil LinkedIn
+
+    4. Cibles prioritaires retournées par Hunter (par ordre de préférence) :
        - CEO / Fondateur / Président (Vision stratégique, signe les gros contrats)
        - CTO / DSI (Décision technique, dette technique)
        - COO (Efficacité opérationnelle)
        - RSSI (Sécurité, normes ISO27001/NIS2)
        - VP Engineering / Directeur Produit
 
-    2. Pour chaque décideur identifié, collecter :
-       - Nom complet (Prénom NOM) - TOUJOURS le nom complet, jamais tronqué
-       - Titre/Fonction exacte
-       - Email professionnel vérifié
-       - Numéro de téléphone professionnel
-       - URL du profil LinkedIn
-
-    3. MÉTHODE OBLIGATOIRE pour chaque décideur :
-       a. Trouver le profil LinkedIn via recherche web "[Prénom Nom] [Entreprise] LinkedIn"
-       b. Une fois l'URL LinkedIn trouvée, APPELER SYSTÉMATIQUEMENT l'outil kaspr_enrich
-          avec les paramètres : linkedin_url (URL LinkedIn) et full_name (Prénom Nom)
-       c. L'outil kaspr_enrich retourne : email professionnel vérifié ET numéro de téléphone
-       d. Si kaspr_enrich ne retourne pas d'email, indiquer "Générique"
-          et proposer le pattern probable (prenom.nom@domaine.com)
-       e. Si kaspr_enrich ne retourne pas de téléphone, indiquer "Non trouvé"
-
-    4. IMPORTANT :
-       - Tu DOIS identifier au minimum 2 décideurs par entreprise
-       - Tu DOIS appeler kaspr_enrich pour CHAQUE décideur ayant un profil LinkedIn
-       - Ne JAMAIS tronquer un nom (ex: "Emanuela" sans nom de famille est INTERDIT)
+    5. IMPORTANT :
+       - Appeler hunter_domain_search UNE SEULE FOIS par entreprise
+       - Si Hunter ne trouve pas de décideurs, indiquer "Non trouvé" pour tous les champs
+       - Ne JAMAIS inventer ou fabriquer un contact
 
   expected_output: >
     Pour chaque entreprise, fournir EXACTEMENT ce format pour chaque décideur (jusqu'à 3) :
