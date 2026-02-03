@@ -14,7 +14,7 @@ Pour Pappers, utiliser le resume condense (2k chars) :
 
 Fichiers complets (lire avec Read tool uniquement si besoin de details) :
 - Pappers complet (336k chars): `src/wakastart_leads/shared/tools/pappers_api.yaml`
-- Kaspr: `src/wakastart_leads/crews/analysis/tools/kaspr_api.txt`
+- Hunter.io: `docs/hunter_io_api.txt`
 - Gamma: `src/wakastart_leads/crews/analysis/tools/gamma_api.txt`
 
 ### Configuration des agents (NE PAS CHARGER - lire manuellement si besoin)
@@ -76,7 +76,7 @@ src/wakastart_leads/
 │   ├── analysis/                # Crew 1 : Analyse d'entreprises
 │   │   ├── crew.py              # AnalysisCrew
 │   │   ├── config/              # agents.yaml, tasks.yaml
-│   │   ├── tools/               # gamma_tool.py, kaspr_tool.py + docs API
+│   │   ├── tools/               # gamma_tool.py, hunter_tool.py + docs API
 │   │   ├── input/               # liste.json, liste_test.json
 │   │   └── output/              # company_report.csv, logs/, backups/
 │   ├── search/                  # Crew 2 : Recherche d'URLs
@@ -102,12 +102,12 @@ src/wakastart_leads/
 | 2+3 | `corporate_analyst_and_saas_qualifier` | `openai/gpt-4o` (temp 0.4) ** | Nationalite, annee creation, qualification technique SaaS |
 | 4 | `wakastart_sales_engineer` | `openai/gpt-4o` (temp 0.6) ** | Scoring pertinence (0-100%), angle d'attaque commercial |
 | Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page Gamma + raccourcissement URL Linkener |
-| 5 | `lead_generation_expert` | `openai/gpt-4o` (temp 0.2) ** | Identification des 3 decideurs + enrichissement Kaspr |
+| 5 | `lead_generation_expert` | `openai/gpt-4o` (temp 0.2) ** | Identification des 3 decideurs + enrichissement Hunter.io |
 | Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
 **\*\* Note temporaire** : Ces 3 agents utilisent GPT-4o au lieu de `anthropic/claude-sonnet-4-5-20250929` (limite API atteinte). Rebasculer vers Claude quand les quotas seront augmentes.
 
-**Tools specifiques** : `gamma_tool.py` (avec Linkener), `kaspr_tool.py` (dans `crews/analysis/tools/`)
+**Tools specifiques** : `gamma_tool.py` (avec Linkener), `hunter_tool.py` (dans `crews/analysis/tools/`)
 
 ### Crew 2 : Search (`src/wakastart_leads/crews/search/`)
 
@@ -150,7 +150,7 @@ src/wakastart_leads/
 | `src/wakastart_leads/crews/enrichment/crew.py` | EnrichmentCrew (1 agent, 1 tache) |
 | `src/wakastart_leads/shared/tools/pappers_tool.py` | PappersSearchTool |
 | `src/wakastart_leads/crews/analysis/tools/gamma_tool.py` | GammaCreateTool (avec Linkener) |
-| `src/wakastart_leads/crews/analysis/tools/kaspr_tool.py` | KasprEnrichTool |
+| `src/wakastart_leads/crews/analysis/tools/hunter_tool.py` | HunterDomainSearchTool |
 
 ### GammaCreateTool - Methodes internes
 
@@ -182,6 +182,36 @@ LOGO_TARGET_HEIGHT = 80
 | **wsrv.nl** | `https://wsrv.nl` | Proxy de redimensionnement images | Non (gratuit) |
 | **Unavatar** | `https://unavatar.io` | Recuperation logos entreprises | Non (gratuit) |
 | **Linkener** | `https://url.wakastart.com/api` | Raccourcissement URLs | Optionnel |
+| **Hunter.io** | `https://api.hunter.io/v2` | Enrichissement decideurs (email, telephone) | Requis |
+
+### HunterDomainSearchTool - Methodes internes
+
+Le `HunterDomainSearchTool` recherche les decideurs d'une entreprise via l'API Hunter.io Domain Search :
+
+| Methode | Description |
+|---------|-------------|
+| `_build_linkedin_url(handle)` | Construit l'URL LinkedIn complete a partir d'un handle |
+| `_sort_contacts(contacts)` | Trie par seniority (executive > senior) puis par confidence |
+| `_format_decideurs(contacts, company_name)` | Formate les contacts en structure decideurs (3 max) |
+| `_run(domain, company_name)` | Appel API Hunter + tri + formatage |
+
+**Parametres API Hunter** :
+- `type=personal` : Exclut les emails generiques (contact@, info@)
+- `seniority=executive,senior` : Cible C-Level et Management
+- `department=executive,management,it` : Departements decisionnaires
+- `limit=10` : Marge pour avoir du choix apres tri
+
+**Format de sortie** :
+```python
+{
+    "company": "Stripe",
+    "decideurs": [
+        {"nom": "Patrick Collison", "titre": "CEO", "email": "...", "telephone": "...", "linkedin": "..."},
+        # ... jusqu'a 3 decideurs
+    ],
+    "contacts_found": 2
+}
+```
 
 ### Input Format
 
@@ -245,7 +275,7 @@ SERPER_API_KEY=...          # Required - Recherche Google
 
 # APIs Enrichissement (Optional)
 PAPPERS_API_KEY=...         # Optional - Donnees legales
-KASPR_API_KEY=...           # Optional - Contacts LinkedIn
+HUNTER_API_KEY=...          # Optional - Decideurs via Hunter.io Domain Search
 GAMMA_API_KEY=...           # Optional - Pages web Gamma
 
 # Linkener - URL Shortener (Optional)
@@ -272,7 +302,7 @@ tests/
 │   │   ├── test_crew.py
 │   │   └── tools/
 │   │       ├── test_gamma_tool.py
-│   │       └── test_kaspr_tool.py
+│   │       └── test_hunter_tool.py
 │   ├── search/
 │   │   └── test_crew.py
 │   └── enrichment/
@@ -290,4 +320,4 @@ tests/
 - `docs/plans/` - Plans de design et d'implementation
 - `docs/business/` - PDFs metier (Projet WakaStart, Protocole)
 - `docs/guides/` - Guides (agent-commercial.md)
-- Documentation API dans les dossiers tools : `gamma_api.txt`, `kaspr_api.txt`, `pappers_api.yaml`
+- Documentation API : `gamma_api.txt`, `pappers_api.yaml`, `docs/hunter_io_api.txt`

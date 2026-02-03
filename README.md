@@ -33,7 +33,7 @@ SERPER_API_KEY=...          # Required - Recherche web
 
 # APIs Enrichissement (Optional)
 PAPPERS_API_KEY=...         # Optional - Donnees legales entreprises
-KASPR_API_KEY=...           # Optional - Enrichissement contacts (email + telephone)
+HUNTER_API_KEY=...          # Optional - Decideurs via Hunter.io Domain Search
 GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 
 # Linkener - URL Shortener (Optional)
@@ -79,7 +79,7 @@ src/wakastart_leads/
 │   ├── analysis/                # Crew 1 : Analyse d'entreprises
 │   │   ├── crew.py              # AnalysisCrew (6 agents, 6 taches)
 │   │   ├── config/              # agents.yaml, tasks.yaml
-│   │   ├── tools/               # gamma_tool.py, kaspr_tool.py
+│   │   ├── tools/               # gamma_tool.py, hunter_tool.py
 │   │   ├── input/               # liste.json, liste_test.json
 │   │   └── output/              # company_report.csv, logs/, backups/
 │   ├── search/                  # Crew 2 : Recherche d'URLs
@@ -109,12 +109,12 @@ URLs (JSON) --> ACT 0+1 --> ACT 2+3 --> ACT 4 --> Gamma --> ACT 5 --> Compilatio
 | ACT 2+3 | Analyste Donnees & Architecte Solutions | GPT-4o (temp 0.4) * | Nationalite, annee creation, qualification SaaS |
 | ACT 4 | Ingenieur Commercial WakaStart | GPT-4o (temp 0.6) * | Scoring pertinence (0-100%), angle d'attaque commercial |
 | Gamma | Architecte Contenu Commercial Digital | GPT-4o (temp 0.3) | Creation page Gamma + raccourcissement URL via Linkener |
-| ACT 5 | Expert Lead Generation | GPT-4o (temp 0.2) * | Identification decideurs + enrichissement Kaspr (email, telephone) |
+| ACT 5 | Expert Lead Generation | GPT-4o (temp 0.2) * | Identification decideurs + enrichissement Hunter.io (email, telephone) |
 | Final | Data Compiler | GPT-4o (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
 *\* Note : Ces agents utilisent temporairement GPT-4o au lieu de Claude Sonnet 4.5 (limite API). A rebasculer quand les quotas seront augmentes.*
 
-**Tools specifiques** : `GammaCreateTool` (avec integration Linkener), `KasprEnrichTool`
+**Tools specifiques** : `GammaCreateTool` (avec integration Linkener), `HunterDomainSearchTool`
 
 ### Crew 2 : Recherche d'URLs
 
@@ -157,7 +157,7 @@ Colonnes ajoutees :
 | **ScrapeWebsiteTool** | CrewAI built-in | Scraping de contenu web |
 | **SerperDevTool** | CrewAI built-in | Recherche Google via API Serper |
 | **PappersSearchTool** | `shared/tools/` | Donnees legales entreprises (SIREN, dirigeants, CA) |
-| **KasprEnrichTool** | `crews/analysis/tools/` | Enrichissement contacts via LinkedIn |
+| **HunterDomainSearchTool** | `crews/analysis/tools/` | Enrichissement decideurs via Hunter.io Domain Search |
 | **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web Gamma + raccourcissement URL Linkener |
 
 #### GammaCreateTool - Workflow
@@ -213,10 +213,41 @@ Le `GammaCreateTool` integre desormais :
    - Gestion des collisions (ajout de suffixe numerique si slug deja pris)
    - Fallback automatique vers l'URL Gamma brute si Linkener non configure
 
+#### HunterDomainSearchTool - Fonctionnalites
+
+Le `HunterDomainSearchTool` recherche les decideurs d'une entreprise via l'API Hunter.io :
+
+```
+Domaine entreprise (ex: stripe.com)
+        │
+        ▼
+┌───────────────────────┐
+│  API Hunter.io        │ ← Domain Search endpoint
+│  (1 seul appel)       │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│  Tri par seniority    │ ← executive > senior > autres
+│  puis par confidence  │
+└───────────────────────┘
+        │
+        ▼
+3 decideurs avec coordonnees
+(nom, titre, email, telephone, LinkedIn)
+```
+
+**Avantages par rapport a Kaspr** :
+- **1 appel API au lieu de 3** : Hunter retourne directement les decideurs
+- **Moins de dependance au scraping** : Pas besoin de chercher les profils LinkedIn
+- **Filtrage automatique** : Exclut les emails generiques (contact@, info@)
+- **Tri intelligent** : Priorite aux C-Level (executive) puis Management (senior)
+
 ### Services externes
 
 | Service | Type | Usage | Cle API |
 |---------|------|-------|---------|
+| **Hunter.io** | Enrichissement | Decideurs C-Level/Management (email, telephone) | Optionnel (via .env) |
 | **wsrv.nl** | Proxy images | Redimensionnement logos (150×80px) | Non requise (gratuit) |
 | **Unavatar** | Logos | Recuperation logos entreprises | Non requise |
 | **Linkener** | URL Shortener | URLs courtes brandees | Optionnel (via .env) |
@@ -254,9 +285,15 @@ Chaque crew genere ses logs dans son propre dossier `output/logs/` :
 
 ## Tests
 
-~200 tests unitaires avec pytest couvrant les 3 crews, les 3 tools custom et les utilitaires.
+222 tests unitaires avec pytest couvrant les 3 crews, les 4 tools custom et les utilitaires.
 
-Tests recents ajoutes pour `GammaCreateTool` :
+Tests pour `HunterDomainSearchTool` (27 tests) :
+- `TestBuildLinkedinUrl` (5 tests) - Construction URLs LinkedIn
+- `TestSortContacts` (5 tests) - Tri par seniority puis confidence
+- `TestFormatDecideurs` (5 tests) - Formatage structure decideurs
+- `TestHunterRun` (10 tests) - Appels API et gestion erreurs
+
+Tests pour `GammaCreateTool` (56 tests) :
 - `TestSanitizeSlug` (7 tests) - Conversion noms → slugs URL-safe
 - `TestGetLinkenerToken` (4 tests) - Authentification Linkener
 - `TestCreateLinkenerUrl` (5 tests) - Creation URLs courtes + gestion collisions
@@ -277,7 +314,7 @@ tests/
 │   │   ├── test_crew.py
 │   │   └── tools/
 │   │       ├── test_gamma_tool.py
-│   │       └── test_kaspr_tool.py
+│   │       └── test_hunter_tool.py
 │   ├── search/
 │   │   └── test_crew.py
 │   └── enrichment/
