@@ -64,7 +64,7 @@ def _mock_constructors():
         patch(f"{M}.ScrapeWebsiteTool", return_value=MagicMock()),
         patch(f"{M}.PappersSearchTool", return_value=MagicMock()),
         patch(f"{M}.GammaCreateTool", return_value=MagicMock()),
-        patch(f"{M}.KasprEnrichTool", return_value=MagicMock()),
+        patch(f"{M}.HunterDomainSearchTool", return_value=MagicMock()),
     ):
         yield
 
