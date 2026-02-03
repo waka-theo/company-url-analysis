@@ -8,6 +8,8 @@ from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
 from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
+# from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool  # TODO: decommenter Task 2
+
 
 # ---------------------------------------------------------------------------
 # Fixtures d'environnement
@@ -33,11 +35,18 @@ def mock_gamma_api_key(monkeypatch):
 
 
 @pytest.fixture()
+def mock_hunter_api_key(monkeypatch):
+    """Injecte une cle API Hunter de test."""
+    monkeypatch.setenv("HUNTER_API_KEY", "test-hunter-key-12345")
+
+
+@pytest.fixture()
 def clear_all_api_keys(monkeypatch):
     """Supprime toutes les cles API de l'environnement."""
     monkeypatch.delenv("KASPR_API_KEY", raising=False)
     monkeypatch.delenv("PAPPERS_API_KEY", raising=False)
     monkeypatch.delenv("GAMMA_API_KEY", raising=False)
+    monkeypatch.delenv("HUNTER_API_KEY", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -228,3 +237,151 @@ def tmp_csv_file(tmp_path):
         return str(csv_file)
 
     return _create
+
+
+# ---------------------------------------------------------------------------
+# Fixtures de donnees API - Hunter
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def hunter_domain_search_response():
+    """Reponse Hunter Domain Search avec 3 decideurs."""
+    return {
+        "data": {
+            "domain": "stripe.com",
+            "organization": "Stripe",
+            "emails": [
+                {
+                    "value": "patrick@stripe.com",
+                    "type": "personal",
+                    "confidence": 97,
+                    "first_name": "Patrick",
+                    "last_name": "Collison",
+                    "position": "CEO",
+                    "seniority": "executive",
+                    "department": "executive",
+                    "linkedin": "patrickcollison",
+                    "phone_number": "+1 555 123 4567",
+                },
+                {
+                    "value": "john@stripe.com",
+                    "type": "personal",
+                    "confidence": 95,
+                    "first_name": "John",
+                    "last_name": "Collison",
+                    "position": "President",
+                    "seniority": "executive",
+                    "department": "executive",
+                    "linkedin": "johncollison",
+                    "phone_number": None,
+                },
+                {
+                    "value": "claire@stripe.com",
+                    "type": "personal",
+                    "confidence": 90,
+                    "first_name": "Claire",
+                    "last_name": "Hughes",
+                    "position": "COO",
+                    "seniority": "senior",
+                    "department": "management",
+                    "linkedin": "clairehughes",
+                    "phone_number": "+1 555 987 6543",
+                },
+            ],
+        },
+        "meta": {
+            "results": 3,
+            "limit": 10,
+            "offset": 0,
+        },
+    }
+
+
+@pytest.fixture()
+def hunter_partial_response():
+    """Reponse Hunter avec seulement 1 decideur."""
+    return {
+        "data": {
+            "domain": "smallco.com",
+            "organization": "SmallCo",
+            "emails": [
+                {
+                    "value": "ceo@smallco.com",
+                    "type": "personal",
+                    "confidence": 85,
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                    "position": "CEO",
+                    "seniority": "executive",
+                    "department": "executive",
+                    "linkedin": None,
+                    "phone_number": None,
+                },
+            ],
+        },
+        "meta": {"results": 1, "limit": 10, "offset": 0},
+    }
+
+
+@pytest.fixture()
+def hunter_empty_response():
+    """Reponse Hunter sans aucun resultat."""
+    return {
+        "data": {
+            "domain": "unknown.com",
+            "organization": None,
+            "emails": [],
+        },
+        "meta": {"results": 0, "limit": 10, "offset": 0},
+    }
+
+
+@pytest.fixture()
+def hunter_needs_sorting_response():
+    """Reponse Hunter avec contacts a trier (senior avant executive dans la liste)."""
+    return {
+        "data": {
+            "domain": "testco.com",
+            "organization": "TestCo",
+            "emails": [
+                {
+                    "value": "dev@testco.com",
+                    "type": "personal",
+                    "confidence": 99,
+                    "first_name": "Junior",
+                    "last_name": "Dev",
+                    "position": "Developer",
+                    "seniority": "junior",
+                    "department": "it",
+                    "linkedin": "juniordev",
+                    "phone_number": None,
+                },
+                {
+                    "value": "manager@testco.com",
+                    "type": "personal",
+                    "confidence": 80,
+                    "first_name": "Senior",
+                    "last_name": "Manager",
+                    "position": "Engineering Manager",
+                    "seniority": "senior",
+                    "department": "management",
+                    "linkedin": "seniormanager",
+                    "phone_number": "+1 555 111 2222",
+                },
+                {
+                    "value": "ceo@testco.com",
+                    "type": "personal",
+                    "confidence": 70,
+                    "first_name": "Big",
+                    "last_name": "Boss",
+                    "position": "CEO",
+                    "seniority": "executive",
+                    "department": "executive",
+                    "linkedin": "bigboss",
+                    "phone_number": "+1 555 000 0000",
+                },
+            ],
+        },
+        "meta": {"results": 3, "limit": 10, "offset": 0},
+    }
