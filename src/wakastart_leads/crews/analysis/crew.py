@@ -8,6 +8,7 @@ from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
 from .tools.gamma_tool import GammaCreateTool
 from .tools.hunter_tool import HunterDomainSearchTool
+from .tools.zeliq_tool import ZeliqEmailEnrichTool
 
 
 @CrewBase
@@ -99,7 +100,13 @@ class AnalysisCrew:
         """ACT 5 : Expert en Lead Generation & Profiling"""
         return Agent(
             config=self.agents_config["lead_generation_expert"],
-            tools=[SerperDevTool(), ScrapeWebsiteTool(), PappersSearchTool(), HunterDomainSearchTool()],
+            tools=[
+                SerperDevTool(),
+                ScrapeWebsiteTool(),
+                PappersSearchTool(),
+                HunterDomainSearchTool(),
+                ZeliqEmailEnrichTool(),
+            ],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
