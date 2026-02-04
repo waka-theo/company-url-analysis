@@ -43,7 +43,25 @@ class ZeliqEmailEnrichTool(BaseTool):
 
     def _create_webhook_url(self) -> tuple[str, str]:
         """Cree une URL unique via webhook.site. Retourne (webhook_url, token_uuid)."""
-        raise NotImplementedError("A implementer dans Task 3")
+        try:
+            response = requests.post(
+                f"{self.WEBHOOK_SITE_URL}/token",
+                timeout=10,
+            )
+
+            if response.status_code != 201:
+                raise RuntimeError(
+                    f"Erreur webhook.site (code {response.status_code}): impossible de creer le token"
+                )
+
+            data = response.json()
+            token_uuid = data["uuid"]
+            webhook_url = f"{self.WEBHOOK_SITE_URL}/{token_uuid}"
+
+            return webhook_url, token_uuid
+
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Erreur de connexion a webhook.site: {e!s}") from e
 
     def _call_zeliq_api(
         self,

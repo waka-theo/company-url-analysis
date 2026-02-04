@@ -7,6 +7,7 @@ import pytest
 from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
 from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool
 from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
+from wakastart_leads.crews.analysis.tools.zeliq_tool import ZeliqEmailEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,11 @@ def gamma_tool():
 @pytest.fixture()
 def hunter_tool():
     return HunterDomainSearchTool()
+
+
+@pytest.fixture()
+def zeliq_tool():
+    return ZeliqEmailEnrichTool()
 
 
 # ---------------------------------------------------------------------------
