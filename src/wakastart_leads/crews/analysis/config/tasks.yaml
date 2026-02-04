@@ -168,43 +168,72 @@ gamma_webpage_creation:
 
     ETAPES OBLIGATOIRES :
 
-    1. Lire le contexte des taches precedentes pour recuperer :
-       - Le nom de l'entreprise et son URL (ACT 0+1)
-       - Le secteur d'activite et la solution SaaS (ACT 2+3)
-       - Les problematiques identifiees par l'analyste commercial (ACT 4)
-       - Les offres WakaStart recommandees (ACT 4)
+    1. EXTRACTION COMPLETE DU CONTEXTE (OBLIGATOIRE - ne rien oublier) :
 
-    2. Pour chaque entreprise, rediger un PROMPT DE PERSONNALISATION destine a Gamma.
-       Ce prompt doit permettre a Gamma d'adapter le template de vente WakaStart
-       au prospect specifique. Le prompt doit contenir :
+       Depuis ACT 0+1 (extraction_and_macro_filtering) :
+       - Nom de l'entreprise
+       - URL du site web
+       - Secteur d'activite
 
-       - Le nom de l'entreprise et son secteur d'activite
-       - Les defis metier du prospect (exemples : dette technique, besoin de conformite
-         HDS/ISO27001/NIS2, acceleration du time-to-market, scalabilite infrastructure)
-       - Les solutions WakaStart adaptees a ces defis :
-         * Developpement rapide (10-25x plus vite, couts divises par 5 a 15)
-         * Migration Pack (PHP/Python/Go vers Next.js/Nest.js)
-         * Securite Secure by Design (ISO 27001, HDS, NIS2)
-         * Multi-tenant natif et marques blanches
-         * Hebergement Kubernetes OVH avec scalabilite automatique
-       - La proposition de valeur personnalisee pour ce prospect
-       - Les benefices concrets et chiffres si possible
+       Depuis ACT 2+3 (origin_identification_and_saas_qualification) :
+       - Annee de creation (ex: 2013)
+       - Nationalite (FR, US, etc.)
+       - Solution SaaS (description courte)
+
+       Depuis ACT 4 (commercial_analysis - Agent Cameleon) - CRITIQUE :
+       - Stack technique detectee (ex: "PHP avec Laravel/Symfony")
+       - Justifications du score (3-4 raisons avec preuves concretes)
+       - Levier PRINCIPAL identifie (ex: "Migration Pack pour moderniser stack PHP")
+       - Levier SECONDAIRE identifie (ex: "Conformite HDS/ISO 27001")
+       - Offres WakaStart recommandees (liste complete)
+
+       IMPORTANT : Si une information est presente dans le contexte, elle DOIT
+       etre utilisee dans le prompt Gamma. Ne pas simplifier ou resumer.
+
+    2. REDACTION DU PROMPT DE PERSONNALISATION pour Gamma.
+       Ce prompt doit etre DETAILLE et SPECIFIQUE au prospect. Il doit contenir :
+
+       SECTION 1 - Contexte Client (personnalise) :
+       - Nom de l'entreprise et secteur d'activite
+       - Annee de creation et anciennete (ex: "Plus de 10 ans d'expertise")
+       - Stack technique actuelle si detectee (reformuler positivement)
+         Ex: "Infrastructure technique en place depuis plusieurs annees, prete pour une evolution"
+
+       SECTION 2 - Defis Identifies (utiliser les justifications du Cameleon) :
+       - Reprendre les 3-4 raisons identifiees par l'analyste commercial
+       - Les reformuler comme des "opportunites d'amelioration" (ton positif)
+       - Mentionner les besoins de conformite si applicable (HDS, ISO 27001, NIS2)
+
+       SECTION 3 - Solutions WakaStart Recommandees :
+       - Reprendre les offres recommandees par l'analyste commercial
+       - Pour chaque offre, expliquer le benefice CLIENT concret :
+         * Developpement rapide : "Accelerez votre time-to-market de 10 a 25x"
+         * Migration Pack : "Modernisez votre stack vers Next.js/Nest.js"
+         * Securite Secure by Design : "Conformite ISO 27001, HDS, NIS2 native"
+         * Multi-tenant : "Architecture prete pour le mode SaaS et marques blanches"
+         * Kubernetes OVH : "Scalabilite automatique pour accompagner votre croissance"
+
+       SECTION 4 - Proposition de Valeur Personnalisee :
+       - Synthetiser le levier PRINCIPAL en une phrase d'accroche
+       - Ajouter le levier SECONDAIRE comme renfort
+       - Mentionner des benefices chiffres si possible (couts /5 a /15, delais /10 a /25)
 
        IMPORTANT sur le TON du prompt :
        - C'est une presentation POUR LE PROSPECT (client final), pas un document interne
        - Ne PAS inclure le score de pertinence (outil interne)
        - Ne PAS utiliser de jargon interne (ACT, Cameleon, angle d'attaque)
+       - Reformuler "dette technique" en "opportunite de modernisation"
        - Utiliser un ton professionnel, engageant, oriente benefices client
        - S'adresser au prospect comme un partenaire de confiance
 
     3. Appeler gamma_create_webpage avec :
-       - prompt : le prompt de personnalisation redige ci-dessus
-       - company_name : le nom commercial de l'entreprise (ex: "WakaStellar")
-       - company_domain : le domaine du site web sans https:// ni www. (ex: "wakastellar.com")
+       - prompt : le prompt de personnalisation DETAILLE redige ci-dessus
+       - company_name : le nom commercial de l'entreprise (ex: "APODIS")
+       - company_domain : le domaine du site web sans https:// ni www. (ex: "apodis-sante.com")
          Extraire le domaine depuis l'URL du site web identifie en ACT 0+1.
 
        L'outil ajoutera automatiquement sur la premiere page :
-       - Le logo de l'entreprise prospect (recherche automatique via Clearbit)
+       - Le logo de l'entreprise prospect (recherche automatique)
        - L'image Opportunity Analysis (WakaStellar)
        - Le logo WakaStellar
 
@@ -213,7 +242,8 @@ gamma_webpage_creation:
   expected_output: >
     Pour chaque entreprise, fournir :
     - Nom de l'entreprise
-    - URL de la page Gamma creee (format https://gamma.app/docs/xxx)
+    - Prompt envoyé a Gamma (3-4 lignes montrant la personnalisation)
+    - URL de la page Gamma creee (format https://gamma.app/docs/xxx et URL courte Linkener)
     - Statut de creation (Succes / Echec / Non disponible)
 
     Si la creation a echoue, indiquer "Non disponible" comme URL.
@@ -226,44 +256,52 @@ gamma_webpage_creation:
 
 decision_makers_identification:
   description: |-
-    ACT 5 - Identification des Décisionnaires
+    ACT 5 - Identification des Décisionnaires avec Enrichissement Email Zeliq
 
-    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés via Hunter.io :
+    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés via Hunter.io,
+    puis enrichir leurs emails via Zeliq pour obtenir des adresses plus fiables.
 
-    1. RÉCUPÉRER LE DOMAINE depuis le contexte des tâches précédentes :
-       - Extraire le domaine (ex: stripe.com) depuis l'URL du site web identifié en ACT 0+1
-       - Ne pas inclure https:// ni www., juste le domaine nu
+    ÉTAPE 1 - RÉCUPÉRER LE DOMAINE depuis le contexte des tâches précédentes :
+    - Extraire le domaine (ex: stripe.com) depuis l'URL du site web identifié en ACT 0+1
+    - Ne pas inclure https:// ni www., juste le domaine nu
 
-    2. APPELER OBLIGATOIREMENT l'outil hunter_domain_search avec :
-       - domain : Le domaine de l'entreprise (ex: stripe.com)
-       - company_name : Le nom de l'entreprise (ex: Stripe)
+    ÉTAPE 2 - APPELER OBLIGATOIREMENT l'outil hunter_domain_search avec :
+    - domain : Le domaine de l'entreprise (ex: stripe.com)
+    - company_name : Le nom de l'entreprise (ex: Stripe)
 
-    3. L'outil Hunter retourne automatiquement jusqu'à 3 décideurs avec :
-       - Nom complet (Prénom NOM)
-       - Titre/Fonction exacte
-       - Email professionnel vérifié
-       - Numéro de téléphone professionnel
-       - URL du profil LinkedIn
+    L'outil Hunter retourne automatiquement jusqu'à 3 décideurs avec :
+    - Nom complet (Prénom NOM)
+    - Titre/Fonction exacte
+    - Email professionnel (sera enrichi par Zeliq)
+    - Numéro de téléphone professionnel
+    - URL du profil LinkedIn
 
-    4. Cibles prioritaires retournées par Hunter (par ordre de préférence) :
-       - CEO / Fondateur / Président (Vision stratégique, signe les gros contrats)
-       - CTO / DSI (Décision technique, dette technique)
-       - COO (Efficacité opérationnelle)
-       - RSSI (Sécurité, normes ISO27001/NIS2)
-       - VP Engineering / Directeur Produit
+    ÉTAPE 3 - ENRICHISSEMENT ZELIQ (OBLIGATOIRE pour chaque décideur avec LinkedIn) :
+    Pour CHAQUE décideur ayant une URL LinkedIn valide, appeler zeliq_email_enrich avec :
+    - first_name : Prénom du décideur
+    - last_name : Nom du décideur
+    - company : Le domaine de l'entreprise
+    - linkedin_url : L'URL LinkedIn retournée par Hunter
 
-    5. IMPORTANT :
-       - Appeler hunter_domain_search UNE SEULE FOIS par entreprise
-       - Si Hunter ne trouve pas de décideurs, indiquer "Non trouvé" pour tous les champs
-       - Ne JAMAIS inventer ou fabriquer un contact
+    RÈGLE DE PRIORITÉ EMAIL :
+    - Si Zeliq retourne un email → UTILISER l'email Zeliq (plus fiable)
+    - Si Zeliq échoue ou timeout → CONSERVER l'email Hunter (fallback)
+    - L'email final dans le CSV doit être l'email Zeliq si disponible
+
+    IMPORTANT :
+    - Appeler hunter_domain_search UNE SEULE FOIS par entreprise
+    - Appeler zeliq_email_enrich pour CHAQUE décideur ayant un LinkedIn valide
+    - Ne JAMAIS inventer ou fabriquer un contact
+    - Si un décideur n'a pas de LinkedIn, conserver l'email Hunter
 
   expected_output: >
     Pour chaque entreprise, fournir EXACTEMENT ce format pour chaque décideur (jusqu'à 3) :
-    - Décideur 1 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
-    - Décideur 2 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
-    - Décideur 3 : [Prénom NOM], [Titre exact], [Email vérifié ou Générique (pattern)], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 1 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 2 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 3 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
 
     IMPORTANT : Le nom doit TOUJOURS être complet (Prénom NOM).
+    L'email doit être celui de Zeliq si disponible, sinon celui de Hunter.
     Si un décideur n'est pas trouvé, indiquer "Non trouvé" pour TOUS ses champs.
 
   agent: lead_generation_expert
