@@ -39,12 +39,19 @@ def mock_hunter_api_key(monkeypatch):
 
 
 @pytest.fixture()
+def mock_zeliq_api_key(monkeypatch):
+    """Injecte une cle API Zeliq de test."""
+    monkeypatch.setenv("ZELIQ_API_KEY", "test-zeliq-key-12345")
+
+
+@pytest.fixture()
 def clear_all_api_keys(monkeypatch):
     """Supprime toutes les cles API de l'environnement."""
     monkeypatch.delenv("KASPR_API_KEY", raising=False)
     monkeypatch.delenv("PAPPERS_API_KEY", raising=False)
     monkeypatch.delenv("GAMMA_API_KEY", raising=False)
     monkeypatch.delenv("HUNTER_API_KEY", raising=False)
+    monkeypatch.delenv("ZELIQ_API_KEY", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -388,3 +395,75 @@ def hunter_needs_sorting_response():
         },
         "meta": {"results": 3, "limit": 10, "offset": 0},
     }
+
+
+# ---------------------------------------------------------------------------
+# Fixtures de donnees API - Zeliq
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def zeliq_success_response():
+    """Reponse Zeliq avec email enrichi."""
+    return {
+        "credit_used": "2",
+        "contact": {
+            "first_name": "Patrick",
+            "last_name": "Collison",
+            "domain": "stripe.com",
+            "linkedin_url": "https://www.linkedin.com/in/patrickcollison",
+            "most_probable_email": "patrick@stripe.com",
+            "most_probable_email_status": "safe to send",
+            "emails": [
+                {"email": "patrick@stripe.com", "status": "safe to send"},
+                {"email": "p.collison@stripe.com", "status": "risky"},
+            ],
+        },
+    }
+
+
+@pytest.fixture()
+def zeliq_no_email_response():
+    """Reponse Zeliq sans email trouve."""
+    return {
+        "credit_used": "0",
+        "contact": {
+            "first_name": "John",
+            "last_name": "Doe",
+            "domain": None,
+            "linkedin_url": "https://www.linkedin.com/in/johndoe",
+            "most_probable_email": None,
+            "most_probable_email_status": None,
+            "emails": [],
+        },
+    }
+
+
+@pytest.fixture()
+def webhook_site_token_response():
+    """Reponse webhook.site pour creation de token."""
+    return {
+        "uuid": "abc123-def456-ghi789",
+    }
+
+
+@pytest.fixture()
+def webhook_site_requests_response(zeliq_success_response):
+    """Reponse webhook.site avec les requetes recues."""
+    import json
+
+    return {
+        "data": [
+            {
+                "uuid": "req-001",
+                "content": json.dumps(zeliq_success_response),
+                "created_at": "2026-02-04T10:00:00Z",
+            }
+        ]
+    }
+
+
+@pytest.fixture()
+def webhook_site_empty_response():
+    """Reponse webhook.site sans requetes (Zeliq n'a pas encore repondu)."""
+    return {"data": []}
