@@ -22,3 +22,6 @@ src/wakastart_leads/crews/*/output/*.json
 # Claude Code (fichiers locaux avec secrets)
 CLAUDE.local.md
 .mcp.json
+
+# Git worktrees
+.worktrees/
