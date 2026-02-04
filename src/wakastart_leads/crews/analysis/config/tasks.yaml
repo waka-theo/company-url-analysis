@@ -1,11 +1,11 @@
 ---
 extraction_and_macro_filtering:
   description: |-
-    Traiter la liste d'URLs fournie dans {urls}. Pour chaque URL :
+    Traiter l'URL fournie : {url}
 
     ACT 0 - Extraction & Ingestion :
-    1. Supprimer les doublons éventuels
-    2. Formater et normaliser les URLs
+    1. Vérifier que l'URL est valide et accessible
+    2. Formater et normaliser l'URL
 
     ACT 1 - Extraction & Filtrage Macro :
     1. Vérifier que l'URL est accessible et valide
@@ -16,10 +16,10 @@ extraction_and_macro_filtering:
        - Mention de "Plateforme client", "Portail adhérent", "Espace membre"
        - Levées de fonds mentionnant "R&D", "tech", "plateforme"
        - Page "Produit", "Solution", "Tarifs" suggérant un modèle SaaS
-    5. Noter les URLs non accessibles
+    5. Noter si l'URL n'est pas accessible
 
     ACT 1-BIS - EXTRACTION SIREN (OBLIGATOIRE) :
-    Pour CHAQUE entreprise valide, récupérer le numéro SIREN depuis les mentions légales :
+    Pour l'entreprise identifiée, récupérer le numéro SIREN depuis les mentions légales :
     1. Scraper la page "Mentions légales" du site. Chemins à tester dans l'ordre :
        - /mentions-legales
        - /mentions-legales/
@@ -39,7 +39,7 @@ extraction_and_macro_filtering:
 
     Exemple de référence : France-Care.fr (Service de conciergerie -> Développement d'un CRM métier après levée de fonds)
   expected_output: >
-    Une liste structurée pour chaque URL contenant :
+    Une structure pour l'URL contenant :
     - URL originale
     - Statut de validation (valid/invalid)
     - Nom de l'entreprise extrait
@@ -47,7 +47,7 @@ extraction_and_macro_filtering:
     - Indices SaaS détectés (liste des signaux trouvés ou "Aucun indice SaaS" si rien détecté)
     - Secteur d'activité apparent
 
-    Format clair indiquant les URLs traitées avec succès et celles avec problèmes.
+    Format clair indiquant si l'URL a été traitée avec succès ou avec problèmes.
     Le SIREN est OBLIGATOIRE pour les agents suivants - ne jamais l'omettre.
   agent: economic_intelligence_analyst
 origin_identification_and_saas_qualification:
