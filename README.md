@@ -248,6 +248,7 @@ Domaine entreprise (ex: stripe.com)
 | Service | Type | Usage | Cle API |
 |---------|------|-------|---------|
 | **Hunter.io** | Enrichissement | Decideurs C-Level/Management (email, telephone) | Optionnel (via .env) |
+| **Zeliq** | Enrichissement | Emails decideurs via LinkedIn | Optionnel (via .env) |
 | **wsrv.nl** | Proxy images | Redimensionnement logos (150×80px) | Non requise (gratuit) |
 | **Unavatar** | Logos | Recuperation logos entreprises | Non requise |
 | **Linkener** | URL Shortener | URLs courtes brandees | Optionnel (via .env) |

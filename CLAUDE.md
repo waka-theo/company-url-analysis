@@ -183,6 +183,7 @@ LOGO_TARGET_HEIGHT = 80
 | **Unavatar** | `https://unavatar.io` | Recuperation logos entreprises | Non (gratuit) |
 | **Linkener** | `https://url.wakastart.com/api` | Raccourcissement URLs | Optionnel |
 | **Hunter.io** | `https://api.hunter.io/v2` | Enrichissement decideurs (email, telephone) | Requis |
+| **Zeliq** | `https://api.zeliq.com/api` | Enrichissement email via LinkedIn | Optionnel |
 
 ### HunterDomainSearchTool - Methodes internes
 
@@ -212,6 +213,25 @@ Le `HunterDomainSearchTool` recherche les decideurs d'une entreprise via l'API H
     "contacts_found": 2
 }
 ```
+
+### ZeliqEmailEnrichTool - Methodes internes
+
+Le `ZeliqEmailEnrichTool` enrichit les emails des decideurs via l'API Zeliq :
+
+| Methode | Description |
+|---------|-------------|
+| `_create_webhook_url()` | Cree une URL unique via webhook.site |
+| `_call_zeliq_api(...)` | Appel POST a /contact/enrich/email |
+| `_poll_webhook(token_uuid)` | Poll webhook.site jusqu'a reponse (max 30s) |
+| `_run(first_name, ...)` | Workflow complet : webhook → API → poll → email |
+
+**Flux d'enrichissement** :
+```
+LinkedIn URL (Hunter) → Zeliq API → webhook.site → Email enrichi
+```
+
+**Regle de priorite** : L'email Zeliq remplace l'email Hunter (plus fiable).
+Si Zeliq echoue, l'email Hunter est conserve en fallback.
 
 ### Input Format
 
