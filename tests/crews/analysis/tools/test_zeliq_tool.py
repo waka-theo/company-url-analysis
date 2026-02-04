@@ -58,3 +58,91 @@ class TestCreateWebhookUrl:
         with patch(self.PATCH_TARGET, side_effect=requests.exceptions.ConnectionError):
             with pytest.raises(RuntimeError, match="connexion"):
                 zeliq_tool._create_webhook_url()
+
+
+# ===========================================================================
+# Tests _call_zeliq_api
+# ===========================================================================
+
+
+class TestCallZeliqApi:
+    PATCH_TARGET = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
+
+    def test_returns_true_on_success(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Retourne True si l'appel API reussit."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, {"status": "processing"})):
+            result = zeliq_tool._call_zeliq_api(
+                first_name="Patrick",
+                last_name="Collison",
+                company="stripe.com",
+                linkedin_url="https://linkedin.com/in/patrickcollison",
+                callback_url="https://webhook.site/abc123",
+            )
+            assert result is True
+
+    def test_sends_correct_payload(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Envoie le bon payload a l'API Zeliq."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, {})) as mock_post:
+            zeliq_tool._call_zeliq_api(
+                first_name="Jean",
+                last_name="Dupont",
+                company="acme.com",
+                linkedin_url="https://linkedin.com/in/jeandupont",
+                callback_url="https://webhook.site/xyz789",
+            )
+            call_kwargs = mock_post.call_args.kwargs
+            payload = call_kwargs.get("json")
+            assert payload["first_name"] == "Jean"
+            assert payload["last_name"] == "Dupont"
+            assert payload["company"] == "acme.com"
+            assert payload["linkedin_url"] == "https://linkedin.com/in/jeandupont"
+            assert payload["callback_url"] == "https://webhook.site/xyz789"
+
+    def test_sends_correct_headers(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Envoie le header x-api-key."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, {})) as mock_post:
+            zeliq_tool._call_zeliq_api(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+                callback_url="https://webhook.site/test",
+            )
+            call_kwargs = mock_post.call_args.kwargs
+            headers = call_kwargs.get("headers")
+            assert headers["x-api-key"] == "test-zeliq-key-12345"
+
+    def test_missing_api_key_raises_error(self, zeliq_tool, clear_all_api_keys):
+        """Leve une erreur si la cle API est absente."""
+        with pytest.raises(ValueError, match="ZELIQ_API_KEY"):
+            zeliq_tool._call_zeliq_api(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+                callback_url="https://webhook.site/test",
+            )
+
+    def test_handles_401_error(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Gere l'erreur 401 (cle invalide)."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(401)):
+            result = zeliq_tool._call_zeliq_api(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+                callback_url="https://webhook.site/test",
+            )
+            assert result is False
+
+    def test_handles_400_error(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Gere l'erreur 400 (validation)."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(400)):
+            result = zeliq_tool._call_zeliq_api(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+                callback_url="https://webhook.site/test",
+            )
+            assert result is False

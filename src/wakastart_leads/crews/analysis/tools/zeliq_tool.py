@@ -72,7 +72,38 @@ class ZeliqEmailEnrichTool(BaseTool):
         callback_url: str,
     ) -> bool:
         """Appelle l'API Zeliq. Retourne True si l'appel a reussi."""
-        raise NotImplementedError("A implementer dans Task 4")
+        api_key = os.getenv("ZELIQ_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("ZELIQ_API_KEY non configuree dans les variables d'environnement.")
+
+        headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "company": company,
+            "linkedin_url": linkedin_url,
+            "callback_url": callback_url,
+        }
+
+        try:
+            response = requests.post(
+                self.ZELIQ_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=30,
+            )
+
+            if response.status_code in (401, 400):
+                return False
+
+            return response.status_code == 200
+
+        except requests.exceptions.RequestException:
+            return False
 
     def _poll_webhook(self, token_uuid: str) -> dict | None:
         """Poll webhook.site jusqu'a reception de la reponse Zeliq. Retourne les donnees ou None."""
