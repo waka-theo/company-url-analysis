@@ -69,16 +69,17 @@ class TestCallZeliqApi:
     PATCH_TARGET = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
 
     def test_returns_true_on_success(self, zeliq_tool, mock_zeliq_api_key, mock_response):
-        """Retourne True si l'appel API reussit."""
-        with patch(self.PATCH_TARGET, return_value=mock_response(200, {"status": "processing"})):
-            result = zeliq_tool._call_zeliq_api(
+        """Retourne (True, job_id) si l'appel API reussit."""
+        with patch(self.PATCH_TARGET, return_value=mock_response(200, {"status": "processing", "jobId": "job-123"})):
+            success, job_id = zeliq_tool._call_zeliq_api(
                 first_name="Patrick",
                 last_name="Collison",
                 company="stripe.com",
                 linkedin_url="https://linkedin.com/in/patrickcollison",
                 callback_url="https://webhook.site/abc123",
             )
-            assert result is True
+            assert success is True
+            assert job_id == "job-123"
 
     def test_sends_correct_payload(self, zeliq_tool, mock_zeliq_api_key, mock_response):
         """Envoie le bon payload a l'API Zeliq."""
@@ -126,26 +127,28 @@ class TestCallZeliqApi:
     def test_handles_401_error(self, zeliq_tool, mock_zeliq_api_key, mock_response):
         """Gere l'erreur 401 (cle invalide)."""
         with patch(self.PATCH_TARGET, return_value=mock_response(401)):
-            result = zeliq_tool._call_zeliq_api(
+            success, job_id = zeliq_tool._call_zeliq_api(
                 first_name="Test",
                 last_name="User",
                 company="test.com",
                 linkedin_url="https://linkedin.com/in/test",
                 callback_url="https://webhook.site/test",
             )
-            assert result is False
+            assert success is False
+            assert job_id is None
 
     def test_handles_400_error(self, zeliq_tool, mock_zeliq_api_key, mock_response):
         """Gere l'erreur 400 (validation)."""
         with patch(self.PATCH_TARGET, return_value=mock_response(400)):
-            result = zeliq_tool._call_zeliq_api(
+            success, job_id = zeliq_tool._call_zeliq_api(
                 first_name="Test",
                 last_name="User",
                 company="test.com",
                 linkedin_url="https://linkedin.com/in/test",
                 callback_url="https://webhook.site/test",
             )
-            assert result is False
+            assert success is False
+            assert job_id is None
 
 
 # ===========================================================================
@@ -220,6 +223,8 @@ class TestPollWebhook:
 
 
 class TestZeliqRun:
+    """Tests du workflow complet _run en mode webhook.site."""
+
     PATCH_POST = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
     PATCH_GET = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.get"
     PATCH_SLEEP = "wakastart_leads.crews.analysis.tools.zeliq_tool.time.sleep"
@@ -228,14 +233,15 @@ class TestZeliqRun:
         self,
         zeliq_tool,
         mock_zeliq_api_key,
+        clear_zeliq_webhook_url,
         mock_response,
         webhook_site_token_response,
         webhook_site_requests_response,
     ):
-        """Workflow complet reussi."""
+        """Workflow complet reussi en mode webhook.site."""
         with patch(self.PATCH_POST, side_effect=[
             mock_response(201, webhook_site_token_response),  # create webhook
-            mock_response(200, {}),  # call zeliq
+            mock_response(200, {"jobId": "job-123"}),  # call zeliq
         ]):
             with patch(self.PATCH_GET, return_value=mock_response(200, webhook_site_requests_response)):
                 with patch(self.PATCH_SLEEP):
@@ -258,8 +264,10 @@ class TestZeliqRun:
         )
         assert "ZELIQ_API_KEY" in result
 
-    def test_webhook_creation_failure(self, zeliq_tool, mock_zeliq_api_key, mock_response):
-        """Gere l'echec de creation du webhook."""
+    def test_webhook_creation_failure(
+        self, zeliq_tool, mock_zeliq_api_key, clear_zeliq_webhook_url, mock_response
+    ):
+        """Gere l'echec de creation du webhook en mode webhook.site."""
         with patch(self.PATCH_POST, return_value=mock_response(500)):
             result = zeliq_tool._run(
                 first_name="Test",
@@ -270,7 +278,7 @@ class TestZeliqRun:
             assert "webhook" in result.lower() or "erreur" in result.lower()
 
     def test_zeliq_api_failure(
-        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response
+        self, zeliq_tool, mock_zeliq_api_key, clear_zeliq_webhook_url, mock_response, webhook_site_token_response
     ):
         """Gere l'echec de l'appel API Zeliq."""
         with patch(self.PATCH_POST, side_effect=[
@@ -286,14 +294,15 @@ class TestZeliqRun:
             assert "echec" in result.lower() or "erreur" in result.lower()
 
     def test_timeout_returns_failure_message(
-        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response, webhook_site_empty_response
+        self, zeliq_tool, mock_zeliq_api_key, clear_zeliq_webhook_url, mock_response,
+        webhook_site_token_response, webhook_site_empty_response
     ):
-        """Retourne un message d'echec apres timeout."""
+        """Retourne un message d'echec apres timeout en mode webhook.site."""
         from wakastart_leads.crews.analysis.tools.zeliq_tool import ZeliqEmailEnrichTool
 
         with patch(self.PATCH_POST, side_effect=[
             mock_response(201, webhook_site_token_response),
-            mock_response(200, {}),
+            mock_response(200, {"jobId": "job-123"}),
         ]):
             with patch(self.PATCH_GET, return_value=mock_response(200, webhook_site_empty_response)):
                 with patch(self.PATCH_SLEEP):
@@ -315,7 +324,8 @@ class TestZeliqRun:
                         ZeliqEmailEnrichTool.POLL_INTERVAL = original_interval
 
     def test_no_email_found(
-        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response, zeliq_no_email_response
+        self, zeliq_tool, mock_zeliq_api_key, clear_zeliq_webhook_url, mock_response,
+        webhook_site_token_response, zeliq_no_email_response
     ):
         """Gere le cas ou Zeliq ne trouve pas d'email."""
         import json
@@ -324,7 +334,7 @@ class TestZeliqRun:
         }
         with patch(self.PATCH_POST, side_effect=[
             mock_response(201, webhook_site_token_response),
-            mock_response(200, {}),
+            mock_response(200, {"jobId": "job-123"}),
         ]):
             with patch(self.PATCH_GET, return_value=mock_response(200, webhook_response_with_no_email)):
                 with patch(self.PATCH_SLEEP):
@@ -335,3 +345,26 @@ class TestZeliqRun:
                         linkedin_url="https://linkedin.com/in/johndoe",
                     )
                     assert "non trouve" in result.lower() or "aucun email" in result.lower()
+
+
+class TestZeliqRunPipedreamMode:
+    """Tests du workflow _run en mode Pipedream."""
+
+    PATCH_POST = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
+
+    def test_pipedream_mode_returns_info_message(
+        self, zeliq_tool, mock_zeliq_api_key, mock_response, monkeypatch
+    ):
+        """En mode Pipedream, retourne un message informatif sans polling."""
+        monkeypatch.setenv("ZELIQ_WEBHOOK_URL", "https://test.m.pipedream.net/")
+
+        with patch(self.PATCH_POST, return_value=mock_response(201, {"jobId": "job-456"})):
+            result = zeliq_tool._run(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+            )
+            assert "pipedream" in result.lower()
+            assert "job-456" in result or "job: job-456" in result
+            assert "hunter" in result.lower()  # Mention du fallback

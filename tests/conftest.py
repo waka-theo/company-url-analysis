@@ -53,6 +53,13 @@ def clear_all_api_keys(monkeypatch):
     monkeypatch.delenv("GAMMA_API_KEY", raising=False)
     monkeypatch.delenv("HUNTER_API_KEY", raising=False)
     monkeypatch.delenv("ZELIQ_API_KEY", raising=False)
+    monkeypatch.delenv("ZELIQ_WEBHOOK_URL", raising=False)
+
+
+@pytest.fixture()
+def clear_zeliq_webhook_url(monkeypatch):
+    """Supprime ZELIQ_WEBHOOK_URL pour forcer le mode webhook.site."""
+    monkeypatch.delenv("ZELIQ_WEBHOOK_URL", raising=False)
 
 
 # ---------------------------------------------------------------------------

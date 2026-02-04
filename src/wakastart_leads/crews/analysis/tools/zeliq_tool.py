@@ -25,7 +25,10 @@ class ZeliqEmailEnrichTool(BaseTool):
 
     A partir des informations du decideur (nom, prenom, entreprise, LinkedIn),
     retourne l'email le plus probable avec son statut de verification.
-    Utilise webhook.site pour gerer l'API asynchrone de Zeliq.
+
+    Supporte deux modes :
+    - Mode Pipedream (si ZELIQ_WEBHOOK_URL definie) : envoie a un endpoint fixe
+    - Mode webhook.site (par defaut) : cree un webhook temporaire et poll le resultat
     """
 
     name: str = "zeliq_email_enrich"
@@ -42,6 +45,21 @@ class ZeliqEmailEnrichTool(BaseTool):
     WEBHOOK_SITE_URL: ClassVar[str] = "https://webhook.site"
     POLL_INTERVAL: ClassVar[int] = 3  # secondes
     POLL_TIMEOUT: ClassVar[int] = 30  # secondes max
+
+    def _get_webhook_url(self) -> tuple[str, str | None]:
+        """
+        Retourne l'URL du webhook a utiliser.
+
+        Returns:
+            tuple: (webhook_url, token_uuid ou None si mode Pipedream)
+        """
+        # Mode Pipedream : utiliser l'URL fixe configuree
+        pipedream_url = os.getenv("ZELIQ_WEBHOOK_URL", "").strip()
+        if pipedream_url:
+            return pipedream_url, None
+
+        # Mode webhook.site : creer un webhook temporaire
+        return self._create_webhook_url()
 
     def _create_webhook_url(self) -> tuple[str, str]:
         """Cree une URL unique via webhook.site. Retourne (webhook_url, token_uuid)."""
@@ -72,8 +90,13 @@ class ZeliqEmailEnrichTool(BaseTool):
         company: str,
         linkedin_url: str,
         callback_url: str,
-    ) -> bool:
-        """Appelle l'API Zeliq. Retourne True si l'appel a reussi."""
+    ) -> tuple[bool, str | None]:
+        """
+        Appelle l'API Zeliq.
+
+        Returns:
+            tuple: (success: bool, job_id: str ou None)
+        """
         api_key = os.getenv("ZELIQ_API_KEY", "").strip()
         if not api_key:
             raise ValueError("ZELIQ_API_KEY non configuree dans les variables d'environnement.")
@@ -100,12 +123,21 @@ class ZeliqEmailEnrichTool(BaseTool):
             )
 
             if response.status_code in (401, 400):
-                return False
+                return False, None
 
-            return response.status_code == 200
+            # Zeliq retourne 200 ou 201 avec un jobId
+            if response.status_code in (200, 201):
+                try:
+                    data = response.json()
+                    job_id = data.get("jobId")
+                    return True, job_id
+                except json.JSONDecodeError:
+                    return True, None
+
+            return False, None
 
         except requests.exceptions.RequestException:
-            return False
+            return False, None
 
     def _poll_webhook(self, token_uuid: str) -> dict | None:
         """Poll webhook.site jusqu'a reception de la reponse Zeliq. Retourne les donnees ou None."""
@@ -152,14 +184,17 @@ class ZeliqEmailEnrichTool(BaseTool):
         if not api_key:
             return f"Erreur: ZELIQ_API_KEY non configuree. Impossible d'enrichir l'email de {full_name}."
 
-        # Etape 1: Creer le webhook
+        # Etape 1: Obtenir l'URL du webhook
         try:
-            webhook_url, token_uuid = self._create_webhook_url()
+            webhook_url, token_uuid = self._get_webhook_url()
         except RuntimeError as e:
             return f"Erreur lors de la creation du webhook pour {full_name}: {e!s}"
 
+        # Mode Pipedream detecte
+        is_pipedream_mode = token_uuid is None
+
         # Etape 2: Appeler l'API Zeliq
-        success = self._call_zeliq_api(
+        success, job_id = self._call_zeliq_api(
             first_name=first_name,
             last_name=last_name,
             company=company,
@@ -170,7 +205,15 @@ class ZeliqEmailEnrichTool(BaseTool):
         if not success:
             return f"Echec de l'appel API Zeliq pour {full_name}. Email non enrichi."
 
-        # Etape 3: Poll pour recuperer le resultat
+        # Mode Pipedream : pas de polling possible, retourner un message informatif
+        if is_pipedream_mode:
+            return (
+                f"Enrichissement Zeliq lance pour {full_name} (job: {job_id or 'N/A'}). "
+                f"L'email sera disponible sur Pipedream. "
+                f"Utiliser l'email Hunter comme fallback."
+            )
+
+        # Mode webhook.site : poll pour recuperer le resultat
         result = self._poll_webhook(token_uuid)
 
         if result is None:
