@@ -2,7 +2,7 @@
 economic_intelligence_analyst:
   role: Expert en Intelligence Économique & Tech Scouting
   goal: >
-    Valider les URLs de la liste {urls}, extraire le nom de l'entreprise, récupérer le numéro SIREN
+    Valider l'URL {url}, extraire le nom de l'entreprise, récupérer le numéro SIREN
     depuis les mentions légales, et détecter les composantes SaaS (avérées ou cachées).
     Analyser en profondeur pour identifier les signaux de développement technologique interne.
   backstory: >
