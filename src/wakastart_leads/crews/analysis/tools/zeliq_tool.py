@@ -145,4 +145,43 @@ class ZeliqEmailEnrichTool(BaseTool):
         linkedin_url: str,
     ) -> str:
         """Execute l'enrichissement email via Zeliq."""
-        raise NotImplementedError("A implementer dans Task 6")
+        full_name = f"{first_name} {last_name}"
+
+        # Verifier la cle API
+        api_key = os.getenv("ZELIQ_API_KEY", "").strip()
+        if not api_key:
+            return f"Erreur: ZELIQ_API_KEY non configuree. Impossible d'enrichir l'email de {full_name}."
+
+        # Etape 1: Creer le webhook
+        try:
+            webhook_url, token_uuid = self._create_webhook_url()
+        except RuntimeError as e:
+            return f"Erreur lors de la creation du webhook pour {full_name}: {e!s}"
+
+        # Etape 2: Appeler l'API Zeliq
+        success = self._call_zeliq_api(
+            first_name=first_name,
+            last_name=last_name,
+            company=company,
+            linkedin_url=linkedin_url,
+            callback_url=webhook_url,
+        )
+
+        if not success:
+            return f"Echec de l'appel API Zeliq pour {full_name}. Email non enrichi."
+
+        # Etape 3: Poll pour recuperer le resultat
+        result = self._poll_webhook(token_uuid)
+
+        if result is None:
+            return f"Timeout: Zeliq n'a pas repondu dans le delai imparti pour {full_name}. Email non enrichi."
+
+        # Extraire l'email
+        contact = result.get("contact", {})
+        email = contact.get("most_probable_email")
+        status = contact.get("most_probable_email_status", "unknown")
+
+        if not email:
+            return f"Aucun email trouve par Zeliq pour {full_name}."
+
+        return f"Email enrichi pour {full_name}:\n- Email: {email}\n- Statut: {status}"

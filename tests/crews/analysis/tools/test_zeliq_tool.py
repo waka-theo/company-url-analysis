@@ -212,3 +212,126 @@ class TestPollWebhook:
             with patch(self.PATCH_SLEEP):
                 result = zeliq_tool._poll_webhook("abc123")
                 assert result is None
+
+
+# ===========================================================================
+# Tests _run (integration du workflow complet)
+# ===========================================================================
+
+
+class TestZeliqRun:
+    PATCH_POST = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
+    PATCH_GET = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.get"
+    PATCH_SLEEP = "wakastart_leads.crews.analysis.tools.zeliq_tool.time.sleep"
+
+    def test_success_flow(
+        self,
+        zeliq_tool,
+        mock_zeliq_api_key,
+        mock_response,
+        webhook_site_token_response,
+        webhook_site_requests_response,
+    ):
+        """Workflow complet reussi."""
+        with patch(self.PATCH_POST, side_effect=[
+            mock_response(201, webhook_site_token_response),  # create webhook
+            mock_response(200, {}),  # call zeliq
+        ]):
+            with patch(self.PATCH_GET, return_value=mock_response(200, webhook_site_requests_response)):
+                with patch(self.PATCH_SLEEP):
+                    result = zeliq_tool._run(
+                        first_name="Patrick",
+                        last_name="Collison",
+                        company="stripe.com",
+                        linkedin_url="https://linkedin.com/in/patrickcollison",
+                    )
+                    assert "patrick@stripe.com" in result
+                    assert "safe to send" in result
+
+    def test_missing_api_key(self, zeliq_tool, clear_all_api_keys):
+        """Erreur si cle API absente."""
+        result = zeliq_tool._run(
+            first_name="Test",
+            last_name="User",
+            company="test.com",
+            linkedin_url="https://linkedin.com/in/test",
+        )
+        assert "ZELIQ_API_KEY" in result
+
+    def test_webhook_creation_failure(self, zeliq_tool, mock_zeliq_api_key, mock_response):
+        """Gere l'echec de creation du webhook."""
+        with patch(self.PATCH_POST, return_value=mock_response(500)):
+            result = zeliq_tool._run(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+            )
+            assert "webhook" in result.lower() or "erreur" in result.lower()
+
+    def test_zeliq_api_failure(
+        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response
+    ):
+        """Gere l'echec de l'appel API Zeliq."""
+        with patch(self.PATCH_POST, side_effect=[
+            mock_response(201, webhook_site_token_response),  # create webhook OK
+            mock_response(401),  # call zeliq FAIL
+        ]):
+            result = zeliq_tool._run(
+                first_name="Test",
+                last_name="User",
+                company="test.com",
+                linkedin_url="https://linkedin.com/in/test",
+            )
+            assert "echec" in result.lower() or "erreur" in result.lower()
+
+    def test_timeout_returns_failure_message(
+        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response, webhook_site_empty_response
+    ):
+        """Retourne un message d'echec apres timeout."""
+        from wakastart_leads.crews.analysis.tools.zeliq_tool import ZeliqEmailEnrichTool
+
+        with patch(self.PATCH_POST, side_effect=[
+            mock_response(201, webhook_site_token_response),
+            mock_response(200, {}),
+        ]):
+            with patch(self.PATCH_GET, return_value=mock_response(200, webhook_site_empty_response)):
+                with patch(self.PATCH_SLEEP):
+                    # Modifier les ClassVar au niveau de la classe
+                    original_timeout = ZeliqEmailEnrichTool.POLL_TIMEOUT
+                    original_interval = ZeliqEmailEnrichTool.POLL_INTERVAL
+                    try:
+                        ZeliqEmailEnrichTool.POLL_TIMEOUT = 3
+                        ZeliqEmailEnrichTool.POLL_INTERVAL = 1
+                        result = zeliq_tool._run(
+                            first_name="Test",
+                            last_name="User",
+                            company="test.com",
+                            linkedin_url="https://linkedin.com/in/test",
+                        )
+                        assert "timeout" in result.lower() or "delai" in result.lower() or "echec" in result.lower()
+                    finally:
+                        ZeliqEmailEnrichTool.POLL_TIMEOUT = original_timeout
+                        ZeliqEmailEnrichTool.POLL_INTERVAL = original_interval
+
+    def test_no_email_found(
+        self, zeliq_tool, mock_zeliq_api_key, mock_response, webhook_site_token_response, zeliq_no_email_response
+    ):
+        """Gere le cas ou Zeliq ne trouve pas d'email."""
+        import json
+        webhook_response_with_no_email = {
+            "data": [{"uuid": "req-001", "content": json.dumps(zeliq_no_email_response)}]
+        }
+        with patch(self.PATCH_POST, side_effect=[
+            mock_response(201, webhook_site_token_response),
+            mock_response(200, {}),
+        ]):
+            with patch(self.PATCH_GET, return_value=mock_response(200, webhook_response_with_no_email)):
+                with patch(self.PATCH_SLEEP):
+                    result = zeliq_tool._run(
+                        first_name="John",
+                        last_name="Doe",
+                        company="unknown.com",
+                        linkedin_url="https://linkedin.com/in/johndoe",
+                    )
+                    assert "non trouve" in result.lower() or "aucun email" in result.lower()
