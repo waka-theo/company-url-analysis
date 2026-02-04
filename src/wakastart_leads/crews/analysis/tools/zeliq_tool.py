@@ -1,6 +1,8 @@
 """Zeliq Email Enrichment Tool pour l'enrichissement des emails via LinkedIn."""
 
+import json
 import os
+import time
 from typing import ClassVar
 
 import requests
@@ -107,7 +109,33 @@ class ZeliqEmailEnrichTool(BaseTool):
 
     def _poll_webhook(self, token_uuid: str) -> dict | None:
         """Poll webhook.site jusqu'a reception de la reponse Zeliq. Retourne les donnees ou None."""
-        raise NotImplementedError("A implementer dans Task 5")
+        elapsed = 0
+        while elapsed < self.POLL_TIMEOUT:
+            try:
+                response = requests.get(
+                    f"{self.WEBHOOK_SITE_URL}/token/{token_uuid}/requests",
+                    timeout=10,
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    requests_list = data.get("data", [])
+
+                    if requests_list:
+                        # Prendre la premiere requete (la plus recente)
+                        first_request = requests_list[0]
+                        content = first_request.get("content", "{}")
+                        return json.loads(content)
+
+            except requests.exceptions.RequestException:
+                return None
+            except json.JSONDecodeError:
+                return None
+
+            time.sleep(self.POLL_INTERVAL)
+            elapsed += self.POLL_INTERVAL
+
+        return None
 
     def _run(
         self,
