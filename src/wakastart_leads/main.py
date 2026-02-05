@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """Point d'entree CLI pour WakaStart Leads."""
 
+from __future__ import annotations
+
+import argparse
+import asyncio
 import json
 import re
 import sys
@@ -19,8 +23,10 @@ from wakastart_leads.shared.utils import (
     SEARCH_OUTPUT,
     cleanup_old_logs,
     load_urls,
+    merge_results_to_csv,
     normalize_url,
     post_process_csv,
+    run_parallel,
 )
 
 
@@ -35,12 +41,49 @@ def _setup_log_file(crew_output_dir: Path, workflow: str) -> str:
 
 def run() -> None:
     """Run the analysis crew."""
+    parser = argparse.ArgumentParser(description="Run the analysis crew")
+    parser.add_argument(
+        "--parallel",
+        "-p",
+        type=int,
+        default=1,
+        help="Nombre de workers paralleles (1 = sequentiel)",
+    )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="Mode batch legacy (toutes URLs en un seul kickoff)",
+    )
+    parser.add_argument(
+        "--retry",
+        type=int,
+        default=1,
+        help="Nombre de retry par URL en cas d'echec",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Timeout par URL en secondes (defaut: 600)",
+    )
+
+    args, _ = parser.parse_known_args(sys.argv[2:] if len(sys.argv) > 2 else [])
+
     urls = load_urls(ANALYSIS_INPUT)
+
+    if args.batch:
+        _run_batch_mode(urls)
+    else:
+        asyncio.run(_run_parallel_mode(urls, args))
+
+
+def _run_batch_mode(urls: list[str]) -> None:
+    """Mode batch legacy : toutes les URLs en un seul kickoff."""
     inputs = {"urls": urls}
 
     crew_instance = AnalysisCrew()
     crew_instance.log_file = _setup_log_file(ANALYSIS_OUTPUT, "run")
-    print(f"[INFO] Logs: {crew_instance.log_file}")
+    print(f"[INFO] Mode batch - Logs: {crew_instance.log_file}")
 
     crew_instance.crew().kickoff(inputs=inputs)
 
@@ -53,10 +96,47 @@ def run() -> None:
     cleanup_old_logs(ANALYSIS_OUTPUT / "logs")
 
 
+async def _run_parallel_mode(urls: list[str], args: argparse.Namespace) -> None:
+    """Mode parallele : chaque URL est traitee independamment."""
+    log_dir = ANALYSIS_OUTPUT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[INFO] Traitement de {len(urls)} URL(s) avec {args.parallel} worker(s)")
+    print(f"[INFO] Timeout: {args.timeout}s par URL, Retry: {args.retry}")
+
+    results = await run_parallel(
+        urls=urls,
+        crew_class=AnalysisCrew,
+        log_dir=log_dir,
+        max_workers=args.parallel,
+        timeout=args.timeout,
+        retry_count=args.retry,
+    )
+
+    # Fusion des resultats
+    merge_results_to_csv(
+        results=results,
+        output_path=ANALYSIS_OUTPUT / "company_report.csv",
+        backup_dir=ANALYSIS_OUTPUT / "backups",
+    )
+
+    # Resume
+    success = sum(1 for r in results if r.status.value == "success")
+    failed = sum(1 for r in results if r.status.value == "failed")
+    timeout = sum(1 for r in results if r.status.value == "timeout")
+
+    print(f"\n{'=' * 50}")
+    print("[DONE] Resultats:")
+    print(f"  - Succes: {success}")
+    print(f"  - Echecs: {failed}")
+    print(f"  - Timeouts: {timeout}")
+    print(f"[OUTPUT] {ANALYSIS_OUTPUT / 'company_report.csv'}")
+
+    cleanup_old_logs(log_dir)
+
+
 def search() -> None:
     """Search for SaaS company URLs based on criteria."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Search for SaaS company URLs")
     parser.add_argument("--criteria", type=str, help="Path to JSON criteria file")
     parser.add_argument("--output", type=str, help="Output file path")
@@ -92,7 +172,6 @@ def search() -> None:
 
 def enrich() -> None:
     """Enrich company CSV with WakaStart analysis."""
-    import argparse
     import csv
     import io
 
