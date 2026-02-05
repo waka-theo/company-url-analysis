@@ -240,19 +240,47 @@ async def run_sequential(
     results: list[UrlResult] = []
     total = len(urls)
 
+    # Créer le fichier de log TXT consolidé
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    consolidated_log_path = log_dir / f"run_{timestamp}.txt"
+
+    def write_log(message: str) -> None:
+        """Écrit dans le log consolidé et affiche à l'écran."""
+        with open(consolidated_log_path, "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+        print(message)
+
+    # Header du log
+    write_log("=" * 70)
+    write_log(f"WAKASTART LEADS - EXECUTION LOG")
+    write_log(f"Démarré le: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    write_log(f"Nombre d'URLs: {total}")
+    write_log(f"Timeout par URL: {timeout}s")
+    write_log(f"Retry count: {retry_count}")
+    write_log("=" * 70)
+    write_log(f"\nINPUTS:")
+    for i, url in enumerate(urls):
+        write_log(f"  [{i + 1}] {url}")
+    write_log("\n" + "=" * 70)
+
     for index, url in enumerate(urls):
-        print(f"\n[{index + 1}/{total}] Traitement de {url}")
+        write_log(f"\n[{index + 1}/{total}] TRAITEMENT: {url}")
+        write_log("-" * 50)
+        start_time = datetime.now()
 
         # Retry logic
         last_result = None
         for attempt in range(retry_count + 1):
+            if attempt > 0:
+                write_log(f"  Tentative {attempt + 1}/{retry_count + 1}...")
             result = await run_single_url(url, crew_class, log_dir, timeout)
             if result.status == RunStatus.SUCCESS:
                 break
             last_result = result
             if attempt < retry_count:
                 wait_time = 2**attempt
-                print(f"  ⚠️ Échec, retry dans {wait_time}s...")
+                write_log(f"  ⚠️ Échec, retry dans {wait_time}s...")
                 await asyncio.sleep(wait_time)
         else:
             result = last_result
@@ -262,16 +290,48 @@ async def run_sequential(
         # Sauvegarde immédiate au CSV
         append_result_to_csv(result, output_path)
 
-        # Afficher le statut
+        # Log détaillé du résultat
+        end_time = datetime.now()
+        write_log(f"  Statut: {result.status.value.upper()}")
+        write_log(f"  Durée: {result.duration_seconds:.1f}s")
+
         if result.status == RunStatus.SUCCESS:
-            print(f"  ✅ Succès ({result.duration_seconds:.1f}s)")
+            write_log(f"  ✅ CSV enrichi avec succès")
+            if result.csv_row:
+                # Extraire quelques infos clés du CSV row
+                parts = result.csv_row.split(",")
+                if len(parts) >= 6:
+                    write_log(f"  OUTPUT:")
+                    write_log(f"    - Société: {parts[0]}")
+                    write_log(f"    - Nationalité: {parts[2] if len(parts) > 2 else 'N/A'}")
+                    write_log(f"    - Année création: {parts[3] if len(parts) > 3 else 'N/A'}")
+                    write_log(f"    - Pertinence: {parts[5] if len(parts) > 5 else 'N/A'}")
         elif result.status == RunStatus.TIMEOUT:
-            print(f"  ⏱️ Timeout après {timeout}s")
+            write_log(f"  ⏱️ Timeout après {timeout}s")
         else:
-            print(f"  ❌ Échec: {result.error}")
+            write_log(f"  ❌ Erreur: {result.error}")
+
+        write_log(f"  Heure fin: {end_time.strftime('%H:%M:%S')}")
 
         # Callback de progression
         if on_progress:
             on_progress(index, total, result)
+
+    # Résumé final
+    success = sum(1 for r in results if r.status == RunStatus.SUCCESS)
+    failed = sum(1 for r in results if r.status == RunStatus.FAILED)
+    timeouts = sum(1 for r in results if r.status == RunStatus.TIMEOUT)
+
+    write_log("\n" + "=" * 70)
+    write_log("RÉSUMÉ FINAL")
+    write_log("=" * 70)
+    write_log(f"  Total URLs: {total}")
+    write_log(f"  ✅ Succès: {success}")
+    write_log(f"  ❌ Échecs: {failed}")
+    write_log(f"  ⏱️ Timeouts: {timeouts}")
+    write_log(f"\nFichier CSV: {output_path}")
+    write_log(f"Fichier log: {consolidated_log_path}")
+    write_log(f"Terminé le: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    write_log("=" * 70)
 
     return results
