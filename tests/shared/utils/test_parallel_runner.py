@@ -1,8 +1,11 @@
 """Tests pour le module parallel_runner."""
 
+import asyncio
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-from wakastart_leads.shared.utils.parallel_runner import RunStatus, UrlResult
+from wakastart_leads.shared.utils.parallel_runner import RunStatus, UrlResult, run_single_url
 
 
 class TestRunStatus:
@@ -44,3 +47,64 @@ class TestUrlResult:
         assert result.status == RunStatus.FAILED
         assert result.csv_row is None
         assert "timeout" in result.error.lower()
+
+
+class TestRunSingleUrl:
+    """Tests pour la fonction run_single_url."""
+
+    async def test_success_execution(self, tmp_path):
+        """Test exécution réussie d'une URL."""
+        mock_crew_class = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_class.return_value = mock_crew_instance
+        mock_crew_instance.crew.return_value.kickoff.return_value = MagicMock(raw="CSV,row,data")
+
+        result = await run_single_url(
+            url="https://example.com",
+            crew_class=mock_crew_class,
+            log_dir=tmp_path,
+            timeout=60,
+        )
+
+        assert result.status == RunStatus.SUCCESS
+        assert result.csv_row == "CSV,row,data"
+        assert result.error is None
+
+    async def test_timeout_execution(self, tmp_path):
+        """Test timeout d'une URL."""
+        mock_crew_class = MagicMock()
+        mock_crew_instance = MagicMock()
+        mock_crew_class.return_value = mock_crew_instance
+
+        async def slow_to_thread(*args, **kwargs):
+            await asyncio.sleep(10)
+            return MagicMock(raw="data")
+
+        with patch(
+            "wakastart_leads.shared.utils.parallel_runner.asyncio.to_thread",
+            side_effect=slow_to_thread,
+        ):
+            result = await run_single_url(
+                url="https://slow.com",
+                crew_class=mock_crew_class,
+                log_dir=tmp_path,
+                timeout=1,
+            )
+
+        assert result.status == RunStatus.TIMEOUT
+        assert "timeout" in result.error.lower()
+
+    async def test_exception_execution(self, tmp_path):
+        """Test exception durant l'exécution."""
+        mock_crew_class = MagicMock()
+        mock_crew_class.return_value.crew.return_value.kickoff.side_effect = Exception("API Error")
+
+        result = await run_single_url(
+            url="https://error.com",
+            crew_class=mock_crew_class,
+            log_dir=tmp_path,
+            timeout=60,
+        )
+
+        assert result.status == RunStatus.FAILED
+        assert "API Error" in result.error
