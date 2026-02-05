@@ -27,6 +27,7 @@ from wakastart_leads.shared.utils import (
     normalize_url,
     post_process_csv,
     run_parallel,
+    run_sequential,
 )
 
 
@@ -73,8 +74,10 @@ def run() -> None:
 
     if args.batch:
         _run_batch_mode(urls)
-    else:
+    elif args.parallel > 1:
         asyncio.run(_run_parallel_mode(urls, args))
+    else:
+        asyncio.run(_run_sequential_mode(urls, args))
 
 
 def _run_batch_mode(urls: list[str]) -> None:
@@ -131,6 +134,50 @@ async def _run_parallel_mode(urls: list[str], args: argparse.Namespace) -> None:
     print(f"  - Echecs: {failed}")
     print(f"  - Timeouts: {timeout}")
     print(f"[OUTPUT] {ANALYSIS_OUTPUT / 'company_report.csv'}")
+
+    cleanup_old_logs(log_dir)
+
+
+async def _run_sequential_mode(urls: list[str], args: argparse.Namespace) -> None:
+    """Mode séquentiel : chaque URL est traitée une par une avec sauvegarde immédiate."""
+    log_dir = ANALYSIS_OUTPUT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    output_path = ANALYSIS_OUTPUT / "company_report.csv"
+    backup_dir = ANALYSIS_OUTPUT / "backups"
+
+    # Backup du CSV existant avant de commencer
+    if output_path.exists():
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"company_report_{timestamp}.csv"
+        backup_path.write_text(output_path.read_text(encoding="utf-8-sig"), encoding="utf-8-sig")
+        # Supprimer le fichier pour repartir de zéro
+        output_path.unlink()
+
+    print(f"[INFO] Mode séquentiel - Traitement de {len(urls)} URL(s)")
+    print(f"[INFO] Timeout: {args.timeout}s par URL, Retry: {args.retry}")
+    print(f"[INFO] Chaque résultat sera sauvegardé immédiatement dans le CSV\n")
+
+    results = await run_sequential(
+        urls=urls,
+        crew_class=AnalysisCrew,
+        log_dir=log_dir,
+        output_path=output_path,
+        timeout=args.timeout,
+        retry_count=args.retry,
+    )
+
+    # Résumé
+    success = sum(1 for r in results if r.status.value == "success")
+    failed = sum(1 for r in results if r.status.value == "failed")
+    timeout_count = sum(1 for r in results if r.status.value == "timeout")
+
+    print(f"\n{'=' * 50}")
+    print("[DONE] Resultats:")
+    print(f"  - Succes: {success}")
+    print(f"  - Echecs: {failed}")
+    print(f"  - Timeouts: {timeout_count}")
+    print(f"[OUTPUT] {output_path}")
 
     cleanup_old_logs(log_dir)
 

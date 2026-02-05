@@ -8,7 +8,9 @@ import pytest
 from wakastart_leads.shared.utils.parallel_runner import (
     RunStatus,
     UrlResult,
+    append_result_to_csv,
     merge_results_to_csv,
+    run_sequential,
     run_single_url,
 )
 
@@ -240,3 +242,124 @@ class TestMergeResultsToCsv:
         # Fichier avec header uniquement
         content = output.read_text()
         assert "Societe" in content  # Header présent
+
+
+class TestAppendResultToCsv:
+    """Tests pour la fonction append_result_to_csv."""
+
+    def test_append_creates_file_with_header(self, tmp_path):
+        """Crée le fichier avec header s'il n'existe pas."""
+        output = tmp_path / "report.csv"
+        result = UrlResult("https://a.com", RunStatus.SUCCESS, "A,data", None, 10)
+
+        append_result_to_csv(result, output)
+
+        assert output.exists()
+        content = output.read_text()
+        assert "Societe" in content  # Header
+        assert "A,data" in content  # Data
+
+    def test_append_adds_to_existing(self, tmp_path):
+        """Ajoute au fichier existant sans recréer le header."""
+        output = tmp_path / "report.csv"
+        # Créer le fichier avec header + une ligne
+        output.write_text("Societe,Site Web\nFirst,data\n", encoding="utf-8-sig")
+
+        result = UrlResult("https://b.com", RunStatus.SUCCESS, "Second,data", None, 10)
+        append_result_to_csv(result, output)
+
+        content = output.read_text()
+        lines = content.strip().split("\n")
+        assert len(lines) == 3  # Header + 2 lignes de données
+        assert "Second,data" in content
+
+    def test_append_ignores_failed_results(self, tmp_path):
+        """N'ajoute pas les résultats en échec."""
+        output = tmp_path / "report.csv"
+        result = UrlResult("https://fail.com", RunStatus.FAILED, None, "error", 10)
+
+        append_result_to_csv(result, output)
+
+        assert output.exists()
+        content = output.read_text(encoding="utf-8-sig")  # UTF-8 BOM aware
+        assert "error" not in content
+        # Seulement le header
+        assert "Societe" in content
+
+
+class TestRunSequential:
+    """Tests pour la fonction run_sequential."""
+
+    @pytest.mark.asyncio
+    async def test_sequential_processes_in_order(self, tmp_path):
+        """Traite les URLs dans l'ordre."""
+        mock_crew_class = MagicMock()
+        call_order = []
+
+        def create_mock_instance():
+            instance = MagicMock()
+
+            def record_call(*args, **kwargs):
+                url = kwargs.get("inputs", {}).get("url", "unknown")
+                call_order.append(url)
+                return MagicMock(raw=f"data-{url}")
+
+            instance.crew.return_value.kickoff.side_effect = record_call
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        urls = ["https://first.com", "https://second.com", "https://third.com"]
+        output = tmp_path / "report.csv"
+
+        await run_sequential(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path / "logs",
+            output_path=output,
+            timeout=60,
+            retry_count=0,
+        )
+
+        # Vérifie l'ordre
+        assert call_order == urls
+
+    @pytest.mark.asyncio
+    async def test_sequential_saves_after_each(self, tmp_path):
+        """Sauvegarde après chaque URL."""
+        mock_crew_class = MagicMock()
+        save_counts = []
+
+        def create_mock_instance():
+            instance = MagicMock()
+            instance.crew.return_value.kickoff.return_value = MagicMock(raw="row,data")
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        output = tmp_path / "report.csv"
+
+        # Wrapper pour compter les lignes après chaque append
+        original_append = append_result_to_csv
+
+        def counting_append(result, path):
+            original_append(result, path)
+            if path.exists():
+                lines = path.read_text().strip().split("\n")
+                save_counts.append(len(lines) - 1)  # -1 pour le header
+
+        with patch(
+            "wakastart_leads.shared.utils.parallel_runner.append_result_to_csv",
+            side_effect=counting_append,
+        ):
+            await run_sequential(
+                urls=["https://a.com", "https://b.com"],
+                crew_class=mock_crew_class,
+                log_dir=tmp_path / "logs",
+                output_path=output,
+                timeout=60,
+                retry_count=0,
+            )
+
+        # Après chaque URL, le compteur augmente
+        assert save_counts == [1, 2]

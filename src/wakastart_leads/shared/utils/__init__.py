@@ -21,8 +21,10 @@ from .parallel_runner import (
     CSV_HEADER,
     RunStatus,
     UrlResult,
+    append_result_to_csv,
     merge_results_to_csv,
     run_parallel,
+    run_sequential,
     run_single_url,
 )
 from .url_utils import ensure_https, load_urls, normalize_url
@@ -44,6 +46,7 @@ __all__ = [
     "SEARCH_OUTPUT",
     "URL_COLUMN_INDEX",
     "UrlResult",
+    "append_result_to_csv",
     "clean_markdown_artifacts",
     "cleanup_old_logs",
     "ensure_https",
@@ -54,5 +57,6 @@ __all__ = [
     "normalize_url",
     "post_process_csv",
     "run_parallel",
+    "run_sequential",
     "run_single_url",
 ]

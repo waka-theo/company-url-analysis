@@ -179,3 +179,99 @@ def merge_results_to_csv(
             clean_row = row.strip().replace("\n", " ").replace("\r", "")
             if clean_row:
                 f.write(clean_row + "\n")
+
+
+def append_result_to_csv(
+    result: UrlResult,
+    output_path: Path,
+) -> None:
+    """
+    Ajoute un résultat au CSV existant (mode incrémental).
+
+    Crée le fichier avec header s'il n'existe pas.
+
+    Args:
+        result: Résultat à ajouter
+        output_path: Chemin du fichier CSV
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Créer le fichier avec header s'il n'existe pas
+    if not output_path.exists():
+        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+            f.write(CSV_HEADER + "\n")
+
+    # Ajouter la ligne si succès
+    if result.status == RunStatus.SUCCESS and result.csv_row:
+        clean_row = result.csv_row.strip().replace("\n", " ").replace("\r", "")
+        if clean_row:
+            with open(output_path, "a", encoding="utf-8-sig", newline="") as f:
+                f.write(clean_row + "\n")
+
+
+async def run_sequential(
+    urls: list[str],
+    crew_class: Any,
+    log_dir: Path,
+    output_path: Path,
+    timeout: int = 600,
+    retry_count: int = 1,
+    on_progress: Any = None,
+) -> list[UrlResult]:
+    """
+    Exécute le crew pour chaque URL séquentiellement avec sauvegarde immédiate.
+
+    Chaque URL est traitée une par une et le résultat est ajouté au CSV
+    immédiatement après le traitement. En cas de crash, les URLs déjà
+    traitées sont conservées.
+
+    Args:
+        urls: Liste des URLs à traiter
+        crew_class: Classe du crew à instancier
+        log_dir: Dossier pour les logs
+        output_path: Chemin du fichier CSV de sortie
+        timeout: Timeout par URL en secondes
+        retry_count: Nombre de retry en cas d'échec
+        on_progress: Callback optionnel appelé après chaque URL (index, total, result)
+
+    Returns:
+        Liste de UrlResult pour chaque URL
+    """
+    results: list[UrlResult] = []
+    total = len(urls)
+
+    for index, url in enumerate(urls):
+        print(f"\n[{index + 1}/{total}] Traitement de {url}")
+
+        # Retry logic
+        last_result = None
+        for attempt in range(retry_count + 1):
+            result = await run_single_url(url, crew_class, log_dir, timeout)
+            if result.status == RunStatus.SUCCESS:
+                break
+            last_result = result
+            if attempt < retry_count:
+                wait_time = 2**attempt
+                print(f"  ⚠️ Échec, retry dans {wait_time}s...")
+                await asyncio.sleep(wait_time)
+        else:
+            result = last_result
+
+        results.append(result)
+
+        # Sauvegarde immédiate au CSV
+        append_result_to_csv(result, output_path)
+
+        # Afficher le statut
+        if result.status == RunStatus.SUCCESS:
+            print(f"  ✅ Succès ({result.duration_seconds:.1f}s)")
+        elif result.status == RunStatus.TIMEOUT:
+            print(f"  ⏱️ Timeout après {timeout}s")
+        else:
+            print(f"  ❌ Échec: {result.error}")
+
+        # Callback de progression
+        if on_progress:
+            on_progress(index, total, result)
+
+    return results
