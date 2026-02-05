@@ -9,11 +9,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Documentation API (NE PAS CHARGER automatiquement)
 
-Pour Pappers, utiliser le resume condense (2k chars) :
-- @src/wakastart_leads/shared/tools/pappers_api_summary.md
+Pour Sirene INSEE, voir la documentation :
+- `docs/sirene_api.txt` - Mode d'emploi connexion API Sirene
 
 Fichiers complets (lire avec Read tool uniquement si besoin de details) :
-- Pappers complet (336k chars): `src/wakastart_leads/shared/tools/pappers_api.yaml`
 - Hunter.io: `docs/hunter_io_api.txt`
 - Gamma: `src/wakastart_leads/crews/analysis/tools/gamma_api.txt`
 
@@ -101,14 +100,14 @@ src/wakastart_leads/
 
 | ACT | Agent | Modele LLM | Role |
 |-----|-------|------------|------|
-| 0+1+1bis | `economic_intelligence_analyst` | `openai/gpt-4o` (temp 0.2) | Validation URLs, extraction nom, **extraction SIREN (mentions legales)**, detection SaaS cache |
-| 2+3 | `corporate_analyst_and_saas_qualifier` | `openai/gpt-4o` (temp 0.4) ** | Nationalite, annee creation (via SIREN), qualification technique SaaS |
-| 4 | `wakastart_sales_engineer` | `openai/gpt-4o` (temp 0.6) ** | Scoring pertinence (0-100%), angle d'attaque commercial |
-| Gamma | `gamma_webpage_creator` | `openai/gpt-4o` (temp 0.3) | Creation page Gamma + raccourcissement URL Linkener |
-| 5 | `lead_generation_expert` | `openai/gpt-4o` (temp 0.2) ** | Identification des 3 decideurs + enrichissement Hunter.io |
-| Final | `data_compiler_and_reporter` | `openai/gpt-4o` (temp 0.1) | Compilation CSV finale (23 colonnes) |
+| 0+1+1bis | `economic_intelligence_analyst` | `gemini/gemini-2.5-flash` (temp 0.2) | Validation URLs, extraction nom, **extraction SIREN (mentions legales)**, detection SaaS cache |
+| 2+3 | `corporate_analyst_and_saas_qualifier` | `gemini/gemini-2.5-flash` (temp 0.4) | Nationalite, annee creation (via SIREN), qualification technique SaaS |
+| 4 | `wakastart_sales_engineer` | `anthropic/claude-sonnet-4-5-20250929` (temp 0.6) | Scoring pertinence (0-100%), angle d'attaque commercial |
+| Gamma | `gamma_webpage_creator` | `gemini/gemini-2.5-pro` (temp 0.3) | Creation page Gamma + raccourcissement URL Linkener |
+| 5 | `lead_generation_expert` | `gemini/gemini-2.5-flash` (temp 0.2) | Identification des 3 decideurs + enrichissement Hunter.io |
+| Final | `data_compiler_and_reporter` | `gemini/gemini-2.0-flash-lite` (temp 0.1) | Compilation CSV finale (23 colonnes) |
 
-**\*\* Note temporaire** : Ces 3 agents utilisent GPT-4o au lieu de `anthropic/claude-sonnet-4-5-20250929` (limite API atteinte). Rebasculer vers Claude quand les quotas seront augmentes.
+**Configuration optimisee** (fevrier 2026) : Mix Claude Sonnet 4.5 (scoring critique) + Gemini 2.5 (extraction/creation) pour un rapport qualite/prix optimal (-70% vs full GPT-4o).
 
 **Tools specifiques** : `gamma_tool.py` (avec Linkener), `hunter_tool.py` (dans `crews/analysis/tools/`)
 
@@ -117,7 +116,7 @@ src/wakastart_leads/
 | Phase | Tache | Role |
 |-------|-------|------|
 | 1 | `search_web_discovery` | Decouverte web via Serper |
-| 2 | `search_pappers_validation` | Validation legale via Pappers |
+| 2 | `search_pappers_validation` | Validation legale via Sirene INSEE |
 | 3 | `search_saas_deep_scan` | Verification SaaS approfondie + compilation JSON |
 
 - **Agent** : `saas_discovery_scout`
@@ -135,13 +134,14 @@ src/wakastart_leads/
 ### Shared (`src/wakastart_leads/shared/`)
 
 **Tools partages** (`shared/tools/`) :
-- `pappers_tool.py` - Donnees legales via API Pappers (utilise par Analysis + Search)
+- `sirene_tool.py` - Donnees legales via API Sirene INSEE (utilise par Analysis + Search)
 
 **Utils** (`shared/utils/`) :
 - `url_utils.py` : `normalize_url()`, `load_urls()`, `ensure_https()`
 - `csv_utils.py` : `load_existing_csv()`, `post_process_csv()`, `clean_markdown_artifacts()`
 - `log_rotation.py` : `cleanup_old_logs()`, `get_log_retention_days()`
 - `constants.py` : Chemins et configuration (`ANALYSIS_INPUT`, `ANALYSIS_OUTPUT`, etc.)
+- `parallel_runner.py` : Orchestration des executions sequentielles/paralleles (voir section dediee)
 
 ### Key Files
 
@@ -151,7 +151,7 @@ src/wakastart_leads/
 | `src/wakastart_leads/crews/analysis/crew.py` | AnalysisCrew (6 agents, 6 taches) |
 | `src/wakastart_leads/crews/search/crew.py` | SearchCrew (1 agent, 3 taches) |
 | `src/wakastart_leads/crews/enrichment/crew.py` | EnrichmentCrew (1 agent, 1 tache) |
-| `src/wakastart_leads/shared/tools/pappers_tool.py` | PappersSearchTool |
+| `src/wakastart_leads/shared/tools/sirene_tool.py` | SireneSearchTool (API INSEE) |
 | `src/wakastart_leads/crews/analysis/tools/gamma_tool.py` | GammaCreateTool (avec Linkener) |
 | `src/wakastart_leads/crews/analysis/tools/hunter_tool.py` | HunterDomainSearchTool |
 
@@ -182,11 +182,12 @@ LOGO_TARGET_HEIGHT = 80
 
 | Service | URL | Usage | Cle API |
 |---------|-----|-------|---------|
+| **Sirene INSEE** | `https://api.insee.fr/api-sirene/3.11` | Donnees legales entreprises francaises | Requise (gratuit) |
 | **wsrv.nl** | `https://wsrv.nl` | Proxy de redimensionnement images | Non (gratuit) |
 | **Unavatar** | `https://unavatar.io` | Recuperation logos entreprises | Non (gratuit) |
 | **Linkener** | `https://url.wakastart.com/api` | Raccourcissement URLs | Optionnel |
 | **Hunter.io** | `https://api.hunter.io/v2` | Enrichissement decideurs (email, telephone) | Requis |
-| **Zeliq** | `https://api.zeliq.com/api` | Enrichissement email via LinkedIn | Optionnel |
+| **Zeliq** | `https://api.zeliq.com/api` | Enrichissement email via LinkedIn | Requis |
 
 ### HunterDomainSearchTool - Methodes internes
 
@@ -236,6 +237,56 @@ LinkedIn URL (Hunter) → Zeliq API → webhook.site → Email enrichi
 **Regle de priorite** : L'email Zeliq remplace l'email Hunter (plus fiable).
 Si Zeliq echoue, l'email Hunter est conserve en fallback.
 
+### parallel_runner.py - Orchestration des executions
+
+Le module `parallel_runner.py` gere l'execution du crew Analysis selon 3 modes :
+
+| Mode | Commande | Comportement |
+|------|----------|--------------|
+| **Sequentiel** (defaut) | `python -m wakastart_leads.main run` | 1 URL a la fois, sauvegarde CSV immediate apres chaque URL |
+| **Parallele** | `python -m wakastart_leads.main run --parallel 3` | N URLs simultanees, sauvegarde a la fin |
+| **Batch** (legacy) | `python -m wakastart_leads.main run --batch` | Toutes URLs en un seul kickoff CrewAI |
+
+**Fonctions principales** :
+
+| Fonction | Description |
+|----------|-------------|
+| `run_sequential(urls, crew_class, ...)` | Traite chaque URL une par une avec sauvegarde immediate |
+| `run_parallel(urls, crew_class, max_workers, ...)` | Traite N URLs en parallele avec semaphore |
+| `run_single_url(url, crew_class, ...)` | Execute le crew pour une seule URL (async) |
+| `append_result_to_csv(result, output_path)` | Ajoute une ligne au CSV existant (mode incremental) |
+| `merge_results_to_csv(results, output_path, ...)` | Fusionne tous les resultats en CSV (mode parallele) |
+| `clean_csv_row(raw_row)` | Nettoie les outputs LLM (supprime headers repetes, artefacts markdown) |
+
+**Structures de donnees** :
+
+```python
+class RunStatus(Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
+
+@dataclass
+class UrlResult:
+    url: str
+    status: RunStatus
+    csv_row: str | None
+    error: str | None
+    duration_seconds: float
+```
+
+**Log TXT consolide** (mode sequentiel) :
+Le mode sequentiel genere un fichier `run_YYYYMMDD_HHMMSS.txt` contenant :
+- Liste des URLs en entree
+- Details de chaque traitement (statut, duree, donnees extraites)
+- Resume final (succes/echecs/timeouts)
+
+**Nettoyage CSV automatique** :
+La fonction `clean_csv_row()` supprime automatiquement :
+- Les artefacts markdown (```, ```csv)
+- Les headers repetes generes par les agents LLM
+- Les espaces superflus
+
 ### Input Format
 
 **Crew d'analyse** : Fichiers dans `crews/analysis/input/`
@@ -279,9 +330,35 @@ Fichier : `company_report.csv` (23 colonnes, UTF-8 BOM)
 ### Logging
 
 Chaque crew genere ses logs dans son propre dossier :
-- `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.json`
+- `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.txt` - Log consolide (mode sequentiel)
+- `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.json` - Log JSON (mode batch)
+- `crews/analysis/output/logs/{domain}_YYYYMMDD_HHMMSS.json` - Logs par URL (modes sequentiel/parallele)
 - `crews/search/output/logs/search_YYYYMMDD_HHMMSS.json`
 - `crews/enrichment/output/logs/enrich_YYYYMMDD_HHMMSS.json`
+
+**Log TXT consolide** (mode sequentiel recommande) :
+```
+======================================================================
+WAKASTART LEADS - EXECUTION LOG
+Demarre le: 2026-02-05 11:41:55
+Nombre d'URLs: 5
+======================================================================
+
+[1/5] TRAITEMENT: https://faks.co
+  Statut: SUCCESS
+  Duree: 245.3s
+  OUTPUT:
+    - Societe: Commandes Pharma S.A.S.
+    - Pertinence: 70%
+...
+
+======================================================================
+RESUME FINAL
+  Total URLs: 5
+  Succes: 5
+  Echecs: 0
+======================================================================
+```
 
 **Rotation automatique** : Les logs > 30 jours sont supprimes (configurable via `LOG_RETENTION_DAYS`)
 
@@ -290,14 +367,16 @@ Chaque crew genere ses logs dans son propre dossier :
 Requires `.env` file with:
 ```bash
 # APIs LLM (Required)
-OPENAI_API_KEY=...          # Required - GPT-4o
 ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
+GOOGLE_API_KEY=...          # Required - Gemini 2.5 Flash/Pro
 
 # API Recherche (Required)
 SERPER_API_KEY=...          # Required - Recherche Google
 
+# API Donnees Entreprises (Required)
+INSEE_SIRENE_API_KEY=...    # Required - API Sirene INSEE (gratuit, voir docs/sirene_api.txt)
+
 # APIs Enrichissement (Optional)
-PAPPERS_API_KEY=...         # Optional - Donnees legales
 HUNTER_API_KEY=...          # Optional - Decideurs via Hunter.io Domain Search
 GAMMA_API_KEY=...           # Optional - Pages web Gamma
 
@@ -331,11 +410,13 @@ tests/
 │   └── enrichment/
 └── shared/
     ├── tools/
-    │   └── test_pappers_tool.py
+    │   ├── test_pappers_tool.py
+    │   └── test_sirene_tool.py      # 35 tests (SireneSearchTool)
     └── utils/
         ├── test_url.py
         ├── test_csv.py
-        └── test_search.py
+        ├── test_search.py
+        └── test_parallel_runner.py  # 21 tests (clean_csv_row, run_sequential, etc.)
 ```
 
 ## Documentation
@@ -343,4 +424,4 @@ tests/
 - `docs/plans/` - Plans de design et d'implementation
 - `docs/business/` - PDFs metier (Projet WakaStart, Protocole)
 - `docs/guides/` - Guides (agent-commercial.md)
-- Documentation API : `gamma_api.txt`, `pappers_api.yaml`, `docs/hunter_io_api.txt`
+- Documentation API : `gamma_api.txt`, `docs/sirene_api.txt`, `docs/hunter_io_api.txt`

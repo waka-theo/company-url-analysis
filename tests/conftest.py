@@ -9,6 +9,7 @@ from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchT
 from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
 from wakastart_leads.crews.analysis.tools.zeliq_tool import ZeliqEmailEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
+from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
 # ---------------------------------------------------------------------------
 # Fixtures d'environnement
@@ -46,6 +47,12 @@ def mock_zeliq_api_key(monkeypatch):
 
 
 @pytest.fixture()
+def mock_sirene_api_key(monkeypatch):
+    """Injecte une cle API Sirene INSEE de test."""
+    monkeypatch.setenv("INSEE_SIRENE_API_KEY", "test-sirene-key-12345")
+
+
+@pytest.fixture()
 def clear_all_api_keys(monkeypatch):
     """Supprime toutes les cles API de l'environnement."""
     monkeypatch.delenv("KASPR_API_KEY", raising=False)
@@ -54,6 +61,7 @@ def clear_all_api_keys(monkeypatch):
     monkeypatch.delenv("HUNTER_API_KEY", raising=False)
     monkeypatch.delenv("ZELIQ_API_KEY", raising=False)
     monkeypatch.delenv("ZELIQ_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("INSEE_SIRENE_API_KEY", raising=False)
 
 
 @pytest.fixture()
@@ -90,6 +98,11 @@ def hunter_tool():
 @pytest.fixture()
 def zeliq_tool():
     return ZeliqEmailEnrichTool()
+
+
+@pytest.fixture()
+def sirene_tool():
+    return SireneSearchTool()
 
 
 # ---------------------------------------------------------------------------
@@ -480,3 +493,104 @@ def webhook_site_requests_response(zeliq_success_response):
 def webhook_site_empty_response():
     """Reponse webhook.site sans requetes (Zeliq n'a pas encore repondu)."""
     return {"data": []}
+
+
+# ---------------------------------------------------------------------------
+# Fixtures de donnees API - Sirene INSEE
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def sirene_unite_legale_response():
+    """Reponse Sirene pour une recherche par SIREN."""
+    return {
+        "uniteLegale": {
+            "siren": "309634954",
+            "dateCreationUniteLegale": "1979-01-01",
+            "trancheEffectifsUniteLegale": "41",
+            "categorieEntreprise": "GE",
+            "periodesUniteLegale": [
+                {
+                    "denominationUniteLegale": "GOOGLE FRANCE",
+                    "categorieJuridiqueUniteLegale": "5720",
+                    "activitePrincipaleUniteLegale": "70.10Z",
+                    "etatAdministratifUniteLegale": "A",
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def sirene_search_results_response():
+    """Reponse Sirene pour une recherche par nom."""
+    return {
+        "unitesLegales": [
+            {
+                "siren": "309634954",
+                "dateCreationUniteLegale": "1979-01-01",
+                "periodesUniteLegale": [
+                    {
+                        "denominationUniteLegale": "GOOGLE FRANCE",
+                        "etatAdministratifUniteLegale": "A",
+                    }
+                ],
+            },
+            {
+                "siren": "443061841",
+                "dateCreationUniteLegale": "2002-10-01",
+                "periodesUniteLegale": [
+                    {
+                        "denominationUniteLegale": "GOOGLE CLOUD FRANCE",
+                        "etatAdministratifUniteLegale": "A",
+                    }
+                ],
+            },
+        ]
+    }
+
+
+@pytest.fixture()
+def sirene_empty_response():
+    """Reponse Sirene sans resultats."""
+    return {"unitesLegales": []}
+
+
+@pytest.fixture()
+def sirene_individual_response():
+    """Reponse Sirene pour un entrepreneur individuel (nom + prenom)."""
+    return {
+        "uniteLegale": {
+            "siren": "123456789",
+            "dateCreationUniteLegale": "2015-03-15",
+            "trancheEffectifsUniteLegale": "01",
+            "periodesUniteLegale": [
+                {
+                    "denominationUniteLegale": None,
+                    "nomUniteLegale": "DUPONT",
+                    "prenomUsuelUniteLegale": "Jean",
+                    "categorieJuridiqueUniteLegale": "1000",
+                    "activitePrincipaleUniteLegale": "62.01Z",
+                    "etatAdministratifUniteLegale": "A",
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def sirene_ceased_response():
+    """Reponse Sirene pour une entreprise cessée."""
+    return {
+        "uniteLegale": {
+            "siren": "999999999",
+            "dateCreationUniteLegale": "2010-01-01",
+            "periodesUniteLegale": [
+                {
+                    "denominationUniteLegale": "CLOSED CORP",
+                    "categorieJuridiqueUniteLegale": "5499",
+                    "etatAdministratifUniteLegale": "C",
+                }
+            ],
+        }
+    }

@@ -4,7 +4,7 @@ from crewai import LLM, Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 
-from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
+from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
 
 @CrewBase
@@ -20,7 +20,7 @@ class SearchCrew:
         """Agent de decouverte et validation d'entreprises SaaS"""
         return Agent(
             config=self.agents_config["saas_discovery_scout"],
-            tools=[SerperDevTool(), ScrapeWebsiteTool(), PappersSearchTool()],
+            tools=[SerperDevTool(), ScrapeWebsiteTool(), SireneSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,

@@ -4,7 +4,7 @@ from crewai import LLM, Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 
-from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
+from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
 from .tools.gamma_tool import GammaCreateTool
 from .tools.hunter_tool import HunterDomainSearchTool
@@ -24,7 +24,7 @@ class AnalysisCrew:
         """ACT 0 + ACT 1 : Expert en Intelligence Economique & Tech Scouting"""
         return Agent(
             config=self.agents_config["economic_intelligence_analyst"],
-            tools=[ScrapeWebsiteTool(), SerperDevTool(), PappersSearchTool()],
+            tools=[ScrapeWebsiteTool(), SerperDevTool(), SireneSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
@@ -33,7 +33,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-2.5-flash",  # Optimise: extraction de donnees
                 temperature=0.2,
             ),
         )
@@ -43,7 +43,7 @@ class AnalysisCrew:
         """ACT 2 + ACT 3 : Analyste Donnees Corporatives & Qualification SaaS"""
         return Agent(
             config=self.agents_config["corporate_analyst_and_saas_qualifier"],
-            tools=[SerperDevTool(), ScrapeWebsiteTool(), PappersSearchTool()],
+            tools=[SerperDevTool(), ScrapeWebsiteTool(), SireneSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
@@ -52,7 +52,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
+                model="gemini/gemini-2.5-flash",  # Optimise: qualification SaaS
                 temperature=0.4,
             ),
         )
@@ -62,7 +62,7 @@ class AnalysisCrew:
         """ACT 4 : Ingenieur Commercial Senior WakaStart"""
         return Agent(
             config=self.agents_config["wakastart_sales_engineer"],
-            tools=[ScrapeWebsiteTool(), SerperDevTool(), PappersSearchTool()],
+            tools=[ScrapeWebsiteTool(), SerperDevTool(), SireneSearchTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
@@ -71,7 +71,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
+                model="anthropic/claude-sonnet-4-5-20250929",  # Premium: scoring commercial critique
                 temperature=0.6,
             ),
         )
@@ -90,7 +90,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-2.5-pro",  # Premium: creation contenu commercial creatif
                 temperature=0.3,
             ),
         )
@@ -103,7 +103,7 @@ class AnalysisCrew:
             tools=[
                 SerperDevTool(),
                 ScrapeWebsiteTool(),
-                PappersSearchTool(),
+                SireneSearchTool(),
                 HunterDomainSearchTool(),
                 ZeliqEmailEnrichTool(),
             ],
@@ -115,7 +115,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",  # Temporaire: remplace Claude (limite API atteinte)
+                model="gemini/gemini-2.5-flash",  # Optimise: identification decideurs
                 temperature=0.2,
             ),
         )
@@ -134,7 +134,7 @@ class AnalysisCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-2.0-flash-lite",  # Budget: formatage CSV simple
                 temperature=0.1,
             ),
         )
@@ -195,6 +195,6 @@ class AnalysisCrew:
             tasks=self.tasks,
             process=Process.sequential,
             verbose=True,
-            chat_llm=LLM(model="openai/gpt-4o-mini"),
+            chat_llm=LLM(model="gemini/gemini-2.0-flash-lite"),  # Optimise: chat interne
             output_log_file=self.log_file,
         )
