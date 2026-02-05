@@ -131,3 +131,51 @@ async def run_parallel(
 
     tasks = [run_with_retry(url) for url in urls]
     return await asyncio.gather(*tasks)
+
+
+CSV_HEADER = (
+    "Societe,Site Web,Nationalite,Annee Creation,Solution SaaS,Pertinence (%),"
+    "Strategie & Angle,Decideur 1 - Nom,Decideur 1 - Titre,Decideur 1 - Email,"
+    "Decideur 1 - Telephone,Decideur 1 - LinkedIn,Decideur 2 - Nom,Decideur 2 - Titre,"
+    "Decideur 2 - Email,Decideur 2 - Telephone,Decideur 2 - LinkedIn,Decideur 3 - Nom,"
+    "Decideur 3 - Titre,Decideur 3 - Email,Decideur 3 - Telephone,Decideur 3 - LinkedIn,"
+    "Page Gamma"
+)
+
+
+def merge_results_to_csv(
+    results: list[UrlResult],
+    output_path: Path,
+    backup_dir: Path,
+) -> None:
+    """
+    Fusionne les résultats en un CSV final.
+
+    Args:
+        results: Liste des résultats à fusionner
+        output_path: Chemin du fichier CSV de sortie
+        backup_dir: Dossier pour les backups
+    """
+    # Backup si le fichier existe
+    if output_path.exists():
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"company_report_{timestamp}.csv"
+        backup_path.write_text(output_path.read_text(encoding="utf-8-sig"), encoding="utf-8-sig")
+
+    # Collecter les lignes réussies
+    rows = [
+        r.csv_row
+        for r in results
+        if r.status == RunStatus.SUCCESS and r.csv_row
+    ]
+
+    # Écrire le fichier
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+        f.write(CSV_HEADER + "\n")
+        for row in rows:
+            # Nettoyer la ligne (supprimer les retours à la ligne internes)
+            clean_row = row.strip().replace("\n", " ").replace("\r", "")
+            if clean_row:
+                f.write(clean_row + "\n")

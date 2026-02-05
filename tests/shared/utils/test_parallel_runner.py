@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from wakastart_leads.shared.utils.parallel_runner import RunStatus, UrlResult, run_single_url
+from wakastart_leads.shared.utils.parallel_runner import (
+    RunStatus,
+    UrlResult,
+    merge_results_to_csv,
+    run_single_url,
+)
 
 
 class TestRunStatus:
@@ -176,3 +181,62 @@ class TestRunParallel:
         failed_count = sum(1 for r in results if r.status == RunStatus.FAILED)
         assert success_count == 2
         assert failed_count == 1
+
+
+class TestMergeResultsToCsv:
+    """Tests pour la fonction merge_results_to_csv."""
+
+    def test_merge_success_only(self, tmp_path):
+        """Fusionne uniquement les résultats réussis."""
+        results = [
+            UrlResult("https://a.com", RunStatus.SUCCESS, "A,https://a.com,FR", None, 10),
+            UrlResult("https://b.com", RunStatus.FAILED, None, "error", 5),
+            UrlResult("https://c.com", RunStatus.SUCCESS, "C,https://c.com,US", None, 15),
+        ]
+
+        output = tmp_path / "report.csv"
+        backup_dir = tmp_path / "backups"
+
+        merge_results_to_csv(results, output, backup_dir)
+
+        assert output.exists()
+        content = output.read_text()
+        assert "A,https://a.com,FR" in content
+        assert "C,https://c.com,US" in content
+        assert "error" not in content
+
+    def test_merge_creates_backup(self, tmp_path):
+        """Crée un backup si le fichier existe déjà."""
+        output = tmp_path / "report.csv"
+        backup_dir = tmp_path / "backups"
+
+        # Créer un fichier existant
+        output.write_text("OLD,DATA")
+
+        results = [
+            UrlResult("https://new.com", RunStatus.SUCCESS, "NEW,DATA", None, 10),
+        ]
+
+        merge_results_to_csv(results, output, backup_dir)
+
+        # Vérifier le backup
+        assert backup_dir.exists()
+        backups = list(backup_dir.glob("*.csv"))
+        assert len(backups) == 1
+        assert "OLD,DATA" in backups[0].read_text()
+
+        # Vérifier le nouveau contenu
+        assert "NEW,DATA" in output.read_text()
+
+    def test_merge_empty_results(self, tmp_path):
+        """Gère une liste de résultats vide."""
+        results = []
+        output = tmp_path / "report.csv"
+        backup_dir = tmp_path / "backups"
+
+        merge_results_to_csv(results, output, backup_dir)
+
+        assert output.exists()
+        # Fichier avec header uniquement
+        content = output.read_text()
+        assert "Societe" in content  # Header présent
