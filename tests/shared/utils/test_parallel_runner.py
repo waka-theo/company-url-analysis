@@ -9,10 +9,76 @@ from wakastart_leads.shared.utils.parallel_runner import (
     RunStatus,
     UrlResult,
     append_result_to_csv,
+    clean_csv_row,
     merge_results_to_csv,
     run_sequential,
     run_single_url,
 )
+
+
+class TestCleanCsvRow:
+    """Tests pour la fonction clean_csv_row."""
+
+    def test_removes_markdown_backticks(self):
+        """Supprime les backticks markdown."""
+        raw = "```csv Entreprise,https://example.com,FR ```"
+        result = clean_csv_row(raw)
+        assert "```" not in result
+        assert "Entreprise" in result
+
+    def test_removes_header_keeps_data(self):
+        """Supprime le header répété et garde les données."""
+        raw = (
+            "Société,Site Web,Nationalité,Année Création,Solution SaaS,"
+            "Pertinence (%),Stratégie & Angle,Décideur 1 - Nom,Décideur 1 - Titre,"
+            "Décideur 1 - Email,Décideur 1 - Téléphone,Décideur 1 - LinkedIn,"
+            "Décideur 2 - Nom,Décideur 2 - Titre,Décideur 2 - Email,"
+            "Décideur 2 - Téléphone,Décideur 2 - LinkedIn,Décideur 3 - Nom,"
+            "Décideur 3 - Titre,Décideur 3 - Email,Décideur 3 - Téléphone,"
+            "Décideur 3 - LinkedIn,Page Gamma "
+            '"MonEntreprise","https://example.com","FR","2020"'
+        )
+        result = clean_csv_row(raw)
+        assert result is not None
+        assert "MonEntreprise" in result
+
+    def test_returns_none_for_empty(self):
+        """Retourne None pour une chaîne vide."""
+        assert clean_csv_row("") is None
+        assert clean_csv_row("   ") is None
+        assert clean_csv_row(None) is None
+
+    def test_removes_multiple_backtick_styles(self):
+        """Supprime différents styles de backticks."""
+        cases = [
+            "``` data,here ```",
+            "```csv data,here ```",
+            "```CSV data,here```",
+        ]
+        for raw in cases:
+            result = clean_csv_row(raw)
+            assert "```" not in result
+            assert "data" in result
+
+    def test_cleans_real_agent_output(self):
+        """Nettoie une sortie réelle d'agent LLM."""
+        raw = (
+            '``` Société,Site Web,Nationalité,Année Création,Solution SaaS,'
+            'Pertinence (%),Stratégie & Angle,Décideur 1 - Nom,Décideur 1 - Titre,'
+            'Décideur 1 - Email,Décideur 1 - Téléphone,Décideur 1 - LinkedIn,'
+            'Décideur 2 - Nom,Décideur 2 - Titre,Décideur 2 - Email,'
+            'Décideur 2 - Téléphone,Décideur 2 - LinkedIn,Décideur 3 - Nom,'
+            'Décideur 3 - Titre,Décideur 3 - Email,Décideur 3 - Téléphone,'
+            'Décideur 3 - LinkedIn,Page Gamma '
+            '"Faks","https://faks.co","FR","2020","SaaS pharma","70%",'
+            '"Angle HDS","John Doe","CEO","john@faks.co","","linkedin.com/in/john",'
+            '"","","","","","","","","","","https://gamma.app/xxx" ```'
+        )
+        result = clean_csv_row(raw)
+        assert result is not None
+        assert "```" not in result
+        assert "Faks" in result
+        assert "https://faks.co" in result
 
 
 class TestRunStatus:

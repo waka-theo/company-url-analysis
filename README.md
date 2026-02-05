@@ -44,15 +44,34 @@ LINKENER_PASSWORD=...       # Optional
 
 ## Utilisation
 
+### Crew d'analyse (3 modes d'execution)
+
 ```bash
-# Lancer le crew d'analyse
+# Mode SEQUENTIEL (recommande) - 1 URL a la fois, sauvegarde CSV immediate
 python -m wakastart_leads.main run
 
-# Lancer le crew de recherche d'URLs
+# Mode PARALLELE - N URLs simultanees, sauvegarde a la fin
+python -m wakastart_leads.main run --parallel 3         # 3 workers
+python -m wakastart_leads.main run --parallel 5 --retry 2 --timeout 900
+
+# Mode BATCH (legacy) - Toutes URLs en un seul kickoff CrewAI
+python -m wakastart_leads.main run --batch
+```
+
+| Mode | Avantages | Inconvenients |
+|------|-----------|---------------|
+| **Sequentiel** (defaut) | Sauvegarde immediate, contexte frais par URL, logs TXT detailles | Plus lent |
+| **Parallele** | Rapide pour gros volumes | Sauvegarde uniquement a la fin |
+| **Batch** | Compatible legacy | Contexte sature si > 5 URLs |
+
+### Autres crews
+
+```bash
+# Crew de recherche d'URLs
 python -m wakastart_leads.main search
 python -m wakastart_leads.main search --criteria path/to/file.json --output output/urls.json
 
-# Lancer l'enrichissement de donnees
+# Crew d'enrichissement de donnees
 python -m wakastart_leads.main enrich
 python -m wakastart_leads.main enrich --test                    # Mode test (20 URLs)
 python -m wakastart_leads.main enrich --input path/to/file.csv  # CSV specifique
@@ -94,7 +113,7 @@ src/wakastart_leads/
 │       └── output/              # enrichment_accumulated.json, logs/
 └── shared/
     ├── tools/                   # pappers_tool.py (partage)
-    └── utils/                   # url_utils, csv_utils, log_rotation, constants
+    └── utils/                   # url_utils, csv_utils, log_rotation, constants, parallel_runner
 ```
 
 ### Crew 1 : Analyse d'entreprises
@@ -278,15 +297,45 @@ Fichier : `crews/analysis/output/company_report.csv` (UTF-8 BOM pour Excel)
 ## Logging
 
 Chaque crew genere ses logs dans son propre dossier `output/logs/` :
-- `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.json`
+
+**Crew Analysis** :
+- `run_YYYYMMDD_HHMMSS.txt` - Log TXT consolide (mode sequentiel) avec inputs, outputs et resume
+- `run_YYYYMMDD_HHMMSS.json` - Log JSON (mode batch)
+- `{domain}_YYYYMMDD_HHMMSS.json` - Logs individuels par URL
+
+**Autres crews** :
 - `crews/search/output/logs/search_YYYYMMDD_HHMMSS.json`
 - `crews/enrichment/output/logs/enrich_YYYYMMDD_HHMMSS.json`
+
+**Exemple de log TXT consolide** (mode sequentiel) :
+```
+======================================================================
+WAKASTART LEADS - EXECUTION LOG
+Demarre le: 2026-02-05 11:41:55
+Nombre d'URLs: 5
+======================================================================
+
+[1/5] TRAITEMENT: https://faks.co
+  Statut: SUCCESS
+  Duree: 245.3s
+  OUTPUT:
+    - Societe: Commandes Pharma S.A.S.
+    - Nationalite: FR
+    - Pertinence: 70%
+
+======================================================================
+RESUME FINAL
+  Total URLs: 5
+  Succes: 5
+  Echecs: 0
+======================================================================
+```
 
 **Rotation automatique** : Les logs > 30 jours sont supprimes automatiquement.
 
 ## Tests
 
-222 tests unitaires avec pytest couvrant les 3 crews, les 4 tools custom et les utilitaires.
+268 tests unitaires avec pytest couvrant les 3 crews, les 5 tools custom et les utilitaires.
 
 Tests pour `HunterDomainSearchTool` (27 tests) :
 - `TestBuildLinkedinUrl` (5 tests) - Construction URLs LinkedIn
@@ -299,10 +348,19 @@ Tests pour `GammaCreateTool` (56 tests) :
 - `TestGetLinkenerToken` (4 tests) - Authentification Linkener
 - `TestCreateLinkenerUrl` (5 tests) - Creation URLs courtes + gestion collisions
 
+Tests pour `parallel_runner.py` (21 tests) :
+- `TestCleanCsvRow` (5 tests) - Nettoyage outputs LLM (artefacts markdown, headers repetes)
+- `TestRunSingleUrl` (3 tests) - Execution async d'une URL
+- `TestRunParallel` (2 tests) - Execution parallele avec semaphore
+- `TestRunSequential` (2 tests) - Execution sequentielle avec sauvegarde immediate
+- `TestMergeResultsToCsv` (3 tests) - Fusion CSV avec backup
+- `TestAppendResultToCsv` (3 tests) - Ajout incremental au CSV
+
 ```bash
 pytest                           # Tous les tests
 pytest tests/crews/analysis/     # Tests crew Analysis
 pytest tests/shared/tools/       # Tests tools partages
+pytest tests/shared/utils/       # Tests utilitaires (parallel_runner, etc.)
 pytest -v                        # Mode verbose
 ```
 
@@ -325,7 +383,8 @@ tests/
     └── utils/
         ├── test_url.py
         ├── test_csv.py
-        └── test_search.py
+        ├── test_search.py
+        └── test_parallel_runner.py
 ```
 
 ## Documentation

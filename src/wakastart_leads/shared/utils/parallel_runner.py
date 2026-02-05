@@ -142,6 +142,99 @@ CSV_HEADER = (
     "Page Gamma"
 )
 
+# Patterns d'en-tête à supprimer (avec/sans accents, variations)
+HEADER_PATTERNS = [
+    "Societe,Site Web,",
+    "Société,Site Web,",
+    "societe,site web,",
+    "société,site web,",
+]
+
+
+def clean_csv_row(raw_row: str) -> str | None:
+    """
+    Nettoie une ligne CSV brute retournée par l'agent LLM.
+
+    Supprime :
+    - Les artefacts markdown (```, ```csv, etc.)
+    - Les lignes d'en-tête répétées
+    - Les espaces superflus
+
+    Args:
+        raw_row: Ligne brute retournée par l'agent
+
+    Returns:
+        Ligne nettoyée ou None si la ligne est vide/invalide
+    """
+    if not raw_row:
+        return None
+
+    # Supprimer les retours à la ligne et retours chariot
+    line = raw_row.strip().replace("\n", " ").replace("\r", "")
+
+    # Supprimer les artefacts markdown au début
+    for prefix in ["```csv", "``` csv", "```CSV", "```"]:
+        if line.startswith(prefix):
+            line = line[len(prefix):].strip()
+
+    # Supprimer les artefacts markdown à la fin
+    if line.endswith("```"):
+        line = line[:-3].strip()
+
+    # Si la ligne contient un header suivi de données, extraire les données
+    for pattern in HEADER_PATTERNS:
+        # Chercher le pattern (case-insensitive)
+        lower_line = line.lower()
+        lower_pattern = pattern.lower()
+
+        # Trouver toutes les occurrences du pattern
+        idx = lower_line.find(lower_pattern)
+        if idx != -1:
+            # Si le header est au début, chercher où commencent les vraies données
+            # Les données commencent après "Page Gamma" ou après le dernier header
+            after_header = line[idx:]
+
+            # Chercher la fin du header (après "Page Gamma" ou "LinkedIn")
+            # et le début des vraies données (qui commencent par un nom d'entreprise)
+            parts = after_header.split(pattern, 1) if idx == 0 else [after_header]
+
+            # Stratégie : trouver le dernier header et prendre ce qui suit
+            last_header_end = -1
+            for hp in HEADER_PATTERNS:
+                pos = line.lower().rfind(hp.lower())
+                if pos > last_header_end:
+                    # Trouver la fin de ce header (chercher "Page Gamma" après)
+                    gamma_pos = line.lower().find("page gamma", pos)
+                    if gamma_pos != -1:
+                        # Les données commencent après "Page Gamma"
+                        end_pos = gamma_pos + len("page gamma")
+                        # Sauter les espaces et virgules
+                        while end_pos < len(line) and line[end_pos] in " ,\t":
+                            end_pos += 1
+                        if end_pos > last_header_end:
+                            last_header_end = end_pos
+
+            if last_header_end > 0 and last_header_end < len(line):
+                line = line[last_header_end:].strip()
+                # Supprimer une virgule en début si présente
+                if line.startswith(","):
+                    line = line[1:].strip()
+
+    # Si la ligne est juste un header, la rejeter
+    for pattern in HEADER_PATTERNS:
+        if line.lower().startswith(pattern.lower()) and "page gamma" in line.lower():
+            # Vérifier si c'est UNIQUEMENT un header (pas de données après)
+            gamma_pos = line.lower().find("page gamma")
+            after_gamma = line[gamma_pos + len("page gamma"):].strip()
+            if not after_gamma or after_gamma == "```":
+                return None
+
+    # Rejeter si la ligne est vide ou ne contient que des espaces
+    if not line or line.isspace():
+        return None
+
+    return line
+
 
 def merge_results_to_csv(
     results: list[UrlResult],
@@ -163,22 +256,20 @@ def merge_results_to_csv(
         backup_path = backup_dir / f"company_report_{timestamp}.csv"
         backup_path.write_text(output_path.read_text(encoding="utf-8-sig"), encoding="utf-8-sig")
 
-    # Collecter les lignes réussies
-    rows = [
-        r.csv_row
-        for r in results
-        if r.status == RunStatus.SUCCESS and r.csv_row
-    ]
+    # Collecter et nettoyer les lignes réussies
+    rows = []
+    for r in results:
+        if r.status == RunStatus.SUCCESS and r.csv_row:
+            cleaned = clean_csv_row(r.csv_row)
+            if cleaned:
+                rows.append(cleaned)
 
     # Écrire le fichier
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
         f.write(CSV_HEADER + "\n")
         for row in rows:
-            # Nettoyer la ligne (supprimer les retours à la ligne internes)
-            clean_row = row.strip().replace("\n", " ").replace("\r", "")
-            if clean_row:
-                f.write(clean_row + "\n")
+            f.write(row + "\n")
 
 
 def append_result_to_csv(
@@ -189,6 +280,7 @@ def append_result_to_csv(
     Ajoute un résultat au CSV existant (mode incrémental).
 
     Crée le fichier avec header s'il n'existe pas.
+    Ne recrée jamais le header si le fichier existe déjà.
 
     Args:
         result: Résultat à ajouter
@@ -196,14 +288,14 @@ def append_result_to_csv(
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Créer le fichier avec header s'il n'existe pas
+    # Créer le fichier avec header UNIQUEMENT s'il n'existe pas
     if not output_path.exists():
         with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
             f.write(CSV_HEADER + "\n")
 
-    # Ajouter la ligne si succès
+    # Ajouter la ligne si succès (après nettoyage)
     if result.status == RunStatus.SUCCESS and result.csv_row:
-        clean_row = result.csv_row.strip().replace("\n", " ").replace("\r", "")
+        clean_row = clean_csv_row(result.csv_row)
         if clean_row:
             with open(output_path, "a", encoding="utf-8-sig", newline="") as f:
                 f.write(clean_row + "\n")
