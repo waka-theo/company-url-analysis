@@ -40,11 +40,11 @@ Ces fichiers de config sont charges uniquement si on travaille sur les agents :
 # Install dependencies (creates .venv with Python 3.10)
 crewai install
 
-# Run the crew (mode parallele par defaut)
-python -m wakastart_leads.main run                    # Mode par defaut (1 URL a la fois)
-python -m wakastart_leads.main run --parallel 3      # 3 URLs en parallele
+# Run the crew (mode sequentiel par defaut avec sauvegarde immediate)
+python -m wakastart_leads.main run                    # Mode sequentiel (1 URL, sauvegarde immediate au CSV)
+python -m wakastart_leads.main run --parallel 3      # 3 URLs en parallele (sauvegarde a la fin)
 python -m wakastart_leads.main run --parallel 5 --retry 2 --timeout 900
-python -m wakastart_leads.main run --batch           # Mode legacy (ancien comportement)
+python -m wakastart_leads.main run --batch           # Mode legacy (toutes URLs en un seul kickoff)
 
 # Search for SaaS URLs
 python -m wakastart_leads.main search
