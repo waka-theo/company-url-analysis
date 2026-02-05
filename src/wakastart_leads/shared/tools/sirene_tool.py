@@ -101,10 +101,12 @@ class SireneSearchTool(BaseTool):
         """Search company by name.
 
         Endpoint: GET /siren?q=...
-        Recherche multicritere sur denominationUniteLegale ou nomUniteLegale.
+        Recherche multicritere sur denominationUniteLegale.
+        Syntaxe Sirene: champ:valeur* (wildcard en fin de mot)
         """
-        # Construire la requete de recherche multicritere
-        search_query = f'denominationUniteLegale:"{name}" OR nomUniteLegale:"{name}"'
+        # Nettoyer le nom pour la recherche (remplacer espaces par *)
+        clean_name = name.strip().replace(" ", "*")
+        search_query = f"periode(denominationUniteLegale:{clean_name}*)"
 
         response = requests.get(
             f"{self._BASE_URL}/siren",
