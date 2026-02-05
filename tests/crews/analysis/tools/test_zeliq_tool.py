@@ -351,12 +351,15 @@ class TestZeliqRunPipedreamMode:
     """Tests du workflow _run en mode Pipedream."""
 
     PATCH_POST = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.post"
+    PATCH_GET = "wakastart_leads.crews.analysis.tools.zeliq_tool.requests.get"
+    PATCH_SLEEP = "wakastart_leads.crews.analysis.tools.zeliq_tool.time.sleep"
 
     def test_pipedream_mode_returns_info_message(
         self, zeliq_tool, mock_zeliq_api_key, mock_response, monkeypatch
     ):
-        """En mode Pipedream, retourne un message informatif sans polling."""
+        """En mode Pipedream sans ZELIQ_RETRIEVE_URL, retourne un message de timeout."""
         monkeypatch.setenv("ZELIQ_WEBHOOK_URL", "https://test.m.pipedream.net/")
+        monkeypatch.delenv("ZELIQ_RETRIEVE_URL", raising=False)
 
         with patch(self.PATCH_POST, return_value=mock_response(201, {"jobId": "job-456"})):
             result = zeliq_tool._run(
@@ -365,6 +368,26 @@ class TestZeliqRunPipedreamMode:
                 company="test.com",
                 linkedin_url="https://linkedin.com/in/test",
             )
-            assert "pipedream" in result.lower()
             assert "job-456" in result or "job: job-456" in result
-            assert "hunter" in result.lower()  # Mention du fallback
+            assert "hunter" in result.lower() or "timeout" in result.lower()  # Mention du fallback ou timeout
+
+    def test_pipedream_mode_with_retrieve_url_success(
+        self, zeliq_tool, mock_zeliq_api_key, mock_response, monkeypatch, zeliq_success_response
+    ):
+        """En mode Pipedream avec ZELIQ_RETRIEVE_URL, retourne l'email enrichi."""
+        monkeypatch.setenv("ZELIQ_WEBHOOK_URL", "https://test.m.pipedream.net/")
+        monkeypatch.setenv("ZELIQ_RETRIEVE_URL", "https://retrieve.m.pipedream.net/")
+
+        pipedream_response = {"found": True, "data": zeliq_success_response}
+
+        with patch(self.PATCH_POST, return_value=mock_response(201, {"jobId": "job-789"})):
+            with patch(self.PATCH_GET, return_value=mock_response(200, pipedream_response)):
+                with patch(self.PATCH_SLEEP):
+                    result = zeliq_tool._run(
+                        first_name="Patrick",
+                        last_name="Collison",
+                        company="stripe.com",
+                        linkedin_url="https://linkedin.com/in/patrickcollison",
+                    )
+                    assert "patrick@stripe.com" in result
+                    assert "safe to send" in result

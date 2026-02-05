@@ -169,6 +169,43 @@ class ZeliqEmailEnrichTool(BaseTool):
 
         return None
 
+    def _poll_pipedream(self, linkedin_url: str) -> dict | None:
+        """Poll Pipedream Data Store pour recuperer le resultat Zeliq. Retourne les donnees ou None."""
+        retrieve_url = os.getenv("ZELIQ_RETRIEVE_URL", "").strip()
+        if not retrieve_url:
+            return None
+
+        elapsed = 0
+        while elapsed < self.POLL_TIMEOUT:
+            try:
+                response = requests.get(
+                    retrieve_url,
+                    params={"key": linkedin_url},
+                    timeout=10,
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("found") and data.get("data"):
+                        result = data["data"]
+                        # Si le resultat est une chaine JSON, la parser
+                        if isinstance(result, str):
+                            try:
+                                result = json.loads(result)
+                            except json.JSONDecodeError:
+                                pass
+                        return result
+
+            except requests.exceptions.RequestException:
+                pass
+            except json.JSONDecodeError:
+                pass
+
+            time.sleep(self.POLL_INTERVAL)
+            elapsed += self.POLL_INTERVAL
+
+        return None
+
     def _run(
         self,
         first_name: str,
@@ -205,13 +242,25 @@ class ZeliqEmailEnrichTool(BaseTool):
         if not success:
             return f"Echec de l'appel API Zeliq pour {full_name}. Email non enrichi."
 
-        # Mode Pipedream : pas de polling possible, retourner un message informatif
+        # Mode Pipedream : poll le Data Store pour recuperer le resultat
         if is_pipedream_mode:
-            return (
-                f"Enrichissement Zeliq lance pour {full_name} (job: {job_id or 'N/A'}). "
-                f"L'email sera disponible sur Pipedream. "
-                f"Utiliser l'email Hunter comme fallback."
-            )
+            result = self._poll_pipedream(linkedin_url)
+
+            if result is None:
+                return (
+                    f"Enrichissement Zeliq lance pour {full_name} (job: {job_id or 'N/A'}). "
+                    f"Timeout en attente de reponse. Utiliser l'email Hunter comme fallback."
+                )
+
+            # Extraire l'email du resultat Pipedream
+            contact = result.get("contact", {})
+            email = contact.get("most_probable_email")
+            status = contact.get("most_probable_email_status", "unknown")
+
+            if not email:
+                return f"Aucun email trouve par Zeliq pour {full_name}."
+
+            return f"Email enrichi pour {full_name}:\n- Email: {email}\n- Statut: {status}"
 
         # Mode webhook.site : poll pour recuperer le resultat
         result = self._poll_webhook(token_uuid)
