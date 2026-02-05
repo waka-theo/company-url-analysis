@@ -91,3 +91,43 @@ async def run_single_url(
             error=str(e),
             duration_seconds=duration,
         )
+
+
+async def run_parallel(
+    urls: list[str],
+    crew_class: Any,
+    log_dir: Path,
+    max_workers: int = 3,
+    timeout: int = 600,
+    retry_count: int = 1,
+) -> list[UrlResult]:
+    """
+    Execute le crew pour plusieurs URLs en parallele.
+
+    Args:
+        urls: Liste des URLs a traiter
+        crew_class: Classe du crew a instancier
+        log_dir: Dossier pour les logs
+        max_workers: Nombre maximum d'executions simultanees
+        timeout: Timeout par URL en secondes
+        retry_count: Nombre de retry en cas d'echec
+
+    Returns:
+        Liste de UrlResult pour chaque URL
+    """
+    semaphore = asyncio.Semaphore(max_workers)
+
+    async def run_with_retry(url: str) -> UrlResult:
+        async with semaphore:
+            last_result = None
+            for attempt in range(retry_count + 1):
+                result = await run_single_url(url, crew_class, log_dir, timeout)
+                if result.status == RunStatus.SUCCESS:
+                    return result
+                last_result = result
+                if attempt < retry_count:
+                    await asyncio.sleep(2**attempt)  # Backoff exponentiel
+            return last_result
+
+    tasks = [run_with_retry(url) for url in urls]
+    return await asyncio.gather(*tasks)

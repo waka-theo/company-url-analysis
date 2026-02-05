@@ -108,3 +108,71 @@ class TestRunSingleUrl:
 
         assert result.status == RunStatus.FAILED
         assert "API Error" in result.error
+
+
+class TestRunParallel:
+    """Tests pour la fonction run_parallel."""
+
+    @pytest.mark.asyncio
+    async def test_parallel_with_semaphore(self, tmp_path):
+        """Test limitation du nombre de workers."""
+        from wakastart_leads.shared.utils.parallel_runner import run_parallel
+
+        mock_crew_class = MagicMock()
+
+        def create_mock_instance():
+            instance = MagicMock()
+            instance.crew.return_value.kickoff.return_value = MagicMock(raw="data")
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        urls = ["https://a.com", "https://b.com", "https://c.com", "https://d.com"]
+
+        results = await run_parallel(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path,
+            max_workers=2,
+            timeout=60,
+            retry_count=0,
+        )
+
+        assert len(results) == 4
+        success_count = sum(1 for r in results if r.status == RunStatus.SUCCESS)
+        assert success_count == 4
+
+    @pytest.mark.asyncio
+    async def test_parallel_one_failure_continues(self, tmp_path):
+        """Test que les autres URLs continuent si une echoue."""
+        from wakastart_leads.shared.utils.parallel_runner import run_parallel
+
+        call_count = [0]
+
+        def create_mock_instance():
+            call_count[0] += 1
+            instance = MagicMock()
+            if call_count[0] == 2:
+                instance.crew.return_value.kickoff.side_effect = Exception("Error on URL 2")
+            else:
+                instance.crew.return_value.kickoff.return_value = MagicMock(raw="data")
+            return instance
+
+        mock_crew_class = MagicMock(side_effect=create_mock_instance)
+
+        urls = ["https://a.com", "https://b.com", "https://c.com"]
+
+        results = await run_parallel(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path,
+            max_workers=1,
+            timeout=60,
+            retry_count=0,
+        )
+
+        assert len(results) == 3
+        success_count = sum(1 for r in results if r.status == RunStatus.SUCCESS)
+        failed_count = sum(1 for r in results if r.status == RunStatus.FAILED)
+        assert success_count == 2
+        assert failed_count == 1
