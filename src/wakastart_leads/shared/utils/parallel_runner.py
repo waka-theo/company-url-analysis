@@ -100,6 +100,8 @@ async def run_parallel(
     max_workers: int = 3,
     timeout: int = 600,
     retry_count: int = 1,
+    output_path: Path | None = None,
+    on_result: Any = None,
 ) -> list[UrlResult]:
     """
     Execute le crew pour plusieurs URLs en parallele.
@@ -111,11 +113,15 @@ async def run_parallel(
         max_workers: Nombre maximum d'executions simultanees
         timeout: Timeout par URL en secondes
         retry_count: Nombre de retry en cas d'echec
+        output_path: Chemin du CSV pour sauvegarde incrementale (optionnel).
+            Si fourni, chaque resultat est ecrit au CSV des qu'il est disponible.
+        on_result: Callback optionnel appele avec chaque UrlResult des qu'il est pret.
 
     Returns:
         Liste de UrlResult pour chaque URL
     """
     semaphore = asyncio.Semaphore(max_workers)
+    csv_lock = asyncio.Lock()
 
     async def run_with_retry(url: str) -> UrlResult:
         async with semaphore:
@@ -123,11 +129,23 @@ async def run_parallel(
             for attempt in range(retry_count + 1):
                 result = await run_single_url(url, crew_class, log_dir, timeout)
                 if result.status == RunStatus.SUCCESS:
-                    return result
+                    break
                 last_result = result
                 if attempt < retry_count:
                     await asyncio.sleep(2**attempt)  # Backoff exponentiel
-            return last_result
+            else:
+                result = last_result
+
+            # Sauvegarde incrementale au CSV
+            if output_path is not None:
+                async with csv_lock:
+                    append_result_to_csv(result, output_path)
+
+            # Callback de notification
+            if on_result is not None:
+                on_result(result)
+
+            return result
 
     tasks = [run_with_retry(url) for url in urls]
     return await asyncio.gather(*tasks)
@@ -242,7 +260,12 @@ def merge_results_to_csv(
     backup_dir: Path,
 ) -> None:
     """
-    Fusionne les résultats en un CSV final.
+    Fusionne les résultats en un CSV final (écrasement complet).
+
+    Note: Cette fonction n'est plus utilisée par le mode parallèle qui
+    sauvegarde désormais de manière incrémentale via append_result_to_csv.
+    Elle est conservée pour un usage standalone (reconstruction manuelle
+    d'un CSV à partir d'une liste de résultats).
 
     Args:
         results: Liste des résultats à fusionner

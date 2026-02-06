@@ -11,6 +11,7 @@ from wakastart_leads.shared.utils.parallel_runner import (
     append_result_to_csv,
     clean_csv_row,
     merge_results_to_csv,
+    run_parallel,
     run_sequential,
     run_single_url,
 )
@@ -429,3 +430,139 @@ class TestRunSequential:
 
         # Après chaque URL, le compteur augmente
         assert save_counts == [1, 2]
+
+
+class TestRunParallelIncremental:
+    """Tests pour la sauvegarde incrementale en mode parallele."""
+
+    @pytest.mark.asyncio
+    async def test_parallel_saves_incrementally(self, tmp_path):
+        """Le CSV contient header + N lignes apres N URLs reussies."""
+        mock_crew_class = MagicMock()
+
+        def create_mock_instance():
+            instance = MagicMock()
+            instance.crew.return_value.kickoff.return_value = MagicMock(raw="Company,https://x.com,FR")
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        output = tmp_path / "report.csv"
+        urls = ["https://a.com", "https://b.com", "https://c.com"]
+
+        results = await run_parallel(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path / "logs",
+            max_workers=2,
+            timeout=60,
+            retry_count=0,
+            output_path=output,
+        )
+
+        assert len(results) == 3
+        assert output.exists()
+        content = output.read_text(encoding="utf-8-sig")
+        lines = [line for line in content.strip().split("\n") if line.strip()]
+        assert lines[0].startswith("Societe")  # Header
+        assert len(lines) == 4  # Header + 3 lignes de donnees
+
+    @pytest.mark.asyncio
+    async def test_parallel_incremental_survives_partial_failure(self, tmp_path):
+        """1 echec sur 3 → CSV contient 2 lignes de donnees."""
+        call_count = [0]
+
+        def create_mock_instance():
+            call_count[0] += 1
+            instance = MagicMock()
+            if call_count[0] == 2:
+                instance.crew.return_value.kickoff.side_effect = Exception("API Error")
+            else:
+                instance.crew.return_value.kickoff.return_value = MagicMock(raw="OK,data,FR")
+            return instance
+
+        mock_crew_class = MagicMock(side_effect=create_mock_instance)
+
+        output = tmp_path / "report.csv"
+        urls = ["https://a.com", "https://b.com", "https://c.com"]
+
+        results = await run_parallel(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path / "logs",
+            max_workers=1,
+            timeout=60,
+            retry_count=0,
+            output_path=output,
+        )
+
+        assert len(results) == 3
+        success_count = sum(1 for r in results if r.status == RunStatus.SUCCESS)
+        assert success_count == 2
+
+        content = output.read_text(encoding="utf-8-sig")
+        lines = [line for line in content.strip().split("\n") if line.strip()]
+        # Header + 2 lignes de donnees (la 3e a echoue)
+        assert len(lines) == 3
+
+    @pytest.mark.asyncio
+    async def test_parallel_without_output_path_no_csv(self, tmp_path):
+        """Sans output_path, aucun CSV cree (retrocompatibilite)."""
+        mock_crew_class = MagicMock()
+
+        def create_mock_instance():
+            instance = MagicMock()
+            instance.crew.return_value.kickoff.return_value = MagicMock(raw="data")
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        csv_path = tmp_path / "report.csv"
+
+        results = await run_parallel(
+            urls=["https://a.com"],
+            crew_class=mock_crew_class,
+            log_dir=tmp_path / "logs",
+            max_workers=1,
+            timeout=60,
+            retry_count=0,
+            # output_path non fourni → pas de CSV
+        )
+
+        assert len(results) == 1
+        assert results[0].status == RunStatus.SUCCESS
+        assert not csv_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_parallel_on_result_callback(self, tmp_path):
+        """Le callback recoit chaque UrlResult."""
+        mock_crew_class = MagicMock()
+
+        def create_mock_instance():
+            instance = MagicMock()
+            instance.crew.return_value.kickoff.return_value = MagicMock(raw="data")
+            return instance
+
+        mock_crew_class.side_effect = create_mock_instance
+
+        received_results: list[UrlResult] = []
+
+        def callback(result: UrlResult) -> None:
+            received_results.append(result)
+
+        urls = ["https://a.com", "https://b.com"]
+
+        await run_parallel(
+            urls=urls,
+            crew_class=mock_crew_class,
+            log_dir=tmp_path / "logs",
+            max_workers=2,
+            timeout=60,
+            retry_count=0,
+            on_result=callback,
+        )
+
+        assert len(received_results) == 2
+        assert all(r.status == RunStatus.SUCCESS for r in received_results)
+        received_urls = {r.url for r in received_results}
+        assert received_urls == {"https://a.com", "https://b.com"}

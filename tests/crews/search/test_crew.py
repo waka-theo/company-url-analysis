@@ -23,7 +23,7 @@ def _mock_search_constructors():
         patch(f"{SM}.Crew", return_value=MagicMock()),
         patch(f"{SM}.SerperDevTool", return_value=MagicMock()),
         patch(f"{SM}.ScrapeWebsiteTool", return_value=MagicMock()),
-        patch(f"{SM}.PappersSearchTool", return_value=MagicMock()),
+        patch(f"{SM}.SireneSearchTool", return_value=MagicMock()),
     ):
         yield
 

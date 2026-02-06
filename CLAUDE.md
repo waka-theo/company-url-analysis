@@ -41,7 +41,7 @@ crewai install
 
 # Run the crew (mode sequentiel par defaut avec sauvegarde immediate)
 python -m wakastart_leads.main run                    # Mode sequentiel (1 URL, sauvegarde immediate au CSV)
-python -m wakastart_leads.main run --parallel 3      # 3 URLs en parallele (sauvegarde a la fin)
+python -m wakastart_leads.main run --parallel 3      # 3 URLs en parallele (sauvegarde incrementale)
 python -m wakastart_leads.main run --parallel 5 --retry 2 --timeout 900
 python -m wakastart_leads.main run --batch           # Mode legacy (toutes URLs en un seul kickoff)
 
@@ -244,18 +244,18 @@ Le module `parallel_runner.py` gere l'execution du crew Analysis selon 3 modes :
 | Mode | Commande | Comportement |
 |------|----------|--------------|
 | **Sequentiel** (defaut) | `python -m wakastart_leads.main run` | 1 URL a la fois, sauvegarde CSV immediate apres chaque URL |
-| **Parallele** | `python -m wakastart_leads.main run --parallel 3` | N URLs simultanees, sauvegarde a la fin |
-| **Batch** (legacy) | `python -m wakastart_leads.main run --batch` | Toutes URLs en un seul kickoff CrewAI |
+| **Parallele** | `python -m wakastart_leads.main run --parallel 3` | N URLs simultanees, sauvegarde CSV incrementale (avec `asyncio.Lock`) |
+| **Batch** (legacy) | `python -m wakastart_leads.main run --batch` | Toutes URLs en un seul kickoff CrewAI (pas de sauvegarde incrementale) |
 
 **Fonctions principales** :
 
 | Fonction | Description |
 |----------|-------------|
 | `run_sequential(urls, crew_class, ...)` | Traite chaque URL une par une avec sauvegarde immediate |
-| `run_parallel(urls, crew_class, max_workers, ...)` | Traite N URLs en parallele avec semaphore |
+| `run_parallel(urls, crew_class, max_workers, ..., output_path, on_result)` | Traite N URLs en parallele avec semaphore + sauvegarde incrementale |
 | `run_single_url(url, crew_class, ...)` | Execute le crew pour une seule URL (async) |
 | `append_result_to_csv(result, output_path)` | Ajoute une ligne au CSV existant (mode incremental) |
-| `merge_results_to_csv(results, output_path, ...)` | Fusionne tous les resultats en CSV (mode parallele) |
+| `merge_results_to_csv(results, output_path, ...)` | Fusionne tous les resultats en CSV (usage standalone, reconstruction) |
 | `clean_csv_row(raw_row)` | Nettoie les outputs LLM (supprime headers repetes, artefacts markdown) |
 
 **Structures de donnees** :
@@ -275,8 +275,8 @@ class UrlResult:
     duration_seconds: float
 ```
 
-**Log TXT consolide** (mode sequentiel) :
-Le mode sequentiel genere un fichier `run_YYYYMMDD_HHMMSS.txt` contenant :
+**Log TXT consolide** (modes sequentiel et parallele) :
+Les modes sequentiel et parallele generent un fichier `run_YYYYMMDD_HHMMSS.txt` / `run_parallel_YYYYMMDD_HHMMSS.txt` contenant :
 - Liste des URLs en entree
 - Details de chaque traitement (statut, duree, donnees extraites)
 - Resume final (succes/echecs/timeouts)
@@ -331,6 +331,7 @@ Fichier : `company_report.csv` (23 colonnes, UTF-8 BOM)
 
 Chaque crew genere ses logs dans son propre dossier :
 - `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.txt` - Log consolide (mode sequentiel)
+- `crews/analysis/output/logs/run_parallel_YYYYMMDD_HHMMSS.txt` - Log consolide (mode parallele)
 - `crews/analysis/output/logs/run_YYYYMMDD_HHMMSS.json` - Log JSON (mode batch)
 - `crews/analysis/output/logs/{domain}_YYYYMMDD_HHMMSS.json` - Logs par URL (modes sequentiel/parallele)
 - `crews/search/output/logs/search_YYYYMMDD_HHMMSS.json`
@@ -416,7 +417,7 @@ tests/
         ├── test_url.py
         ├── test_csv.py
         ├── test_search.py
-        └── test_parallel_runner.py  # 21 tests (clean_csv_row, run_sequential, etc.)
+        └── test_parallel_runner.py  # 25 tests (clean_csv_row, run_sequential, run_parallel incremental, etc.)
 ```
 
 ## Documentation

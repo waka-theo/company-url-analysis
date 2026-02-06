@@ -23,7 +23,6 @@ from wakastart_leads.shared.utils import (
     SEARCH_OUTPUT,
     cleanup_old_logs,
     load_urls,
-    merge_results_to_csv,
     normalize_url,
     post_process_csv,
     run_parallel,
@@ -82,6 +81,11 @@ def run() -> None:
 
 def _run_batch_mode(urls: list[str]) -> None:
     """Mode batch legacy : toutes les URLs en un seul kickoff."""
+    print(
+        "[WARNING] Le mode batch ne sauvegarde pas de maniere incrementale. "
+        "En cas de crash, tous les resultats seront perdus. "
+        "Utilisez le mode sequentiel (defaut) ou parallele (--parallel N) pour une sauvegarde progressive."
+    )
     inputs = {"urls": urls}
 
     crew_instance = AnalysisCrew()
@@ -100,12 +104,55 @@ def _run_batch_mode(urls: list[str]) -> None:
 
 
 async def _run_parallel_mode(urls: list[str], args: argparse.Namespace) -> None:
-    """Mode parallele : chaque URL est traitee independamment."""
+    """Mode parallele : chaque URL est traitee independamment avec sauvegarde incrementale."""
     log_dir = ANALYSIS_OUTPUT / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    output_path = ANALYSIS_OUTPUT / "company_report.csv"
+    backup_dir = ANALYSIS_OUTPUT / "backups"
 
-    print(f"[INFO] Traitement de {len(urls)} URL(s) avec {args.parallel} worker(s)")
-    print(f"[INFO] Timeout: {args.timeout}s par URL, Retry: {args.retry}")
+    # Backup du CSV existant avant de commencer
+    if output_path.exists():
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"company_report_{timestamp}.csv"
+        backup_path.write_text(output_path.read_text(encoding="utf-8-sig"), encoding="utf-8-sig")
+        output_path.unlink()
+
+    # Log TXT consolide
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    consolidated_log_path = log_dir / f"run_parallel_{timestamp}.txt"
+
+    def write_log(message: str) -> None:
+        with open(consolidated_log_path, "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+        print(message)
+
+    write_log("=" * 70)
+    write_log("WAKASTART LEADS - EXECUTION LOG (PARALLELE)")
+    write_log(f"Demarre le: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    write_log(f"Nombre d'URLs: {len(urls)}")
+    write_log(f"Workers: {args.parallel}")
+    write_log(f"Timeout par URL: {args.timeout}s")
+    write_log(f"Retry count: {args.retry}")
+    write_log("=" * 70)
+    write_log("\nINPUTS:")
+    for i, url in enumerate(urls):
+        write_log(f"  [{i + 1}] {url}")
+    write_log("\n" + "=" * 70)
+
+    def on_result(result):
+        status_icon = {"success": "OK", "failed": "ECHEC", "timeout": "TIMEOUT"}.get(result.status.value, "?")
+        write_log(f"\n[{status_icon}] {result.url}")
+        write_log(f"  Statut: {result.status.value.upper()}")
+        write_log(f"  Duree: {result.duration_seconds:.1f}s")
+        if result.status.value == "success" and result.csv_row:
+            parts = result.csv_row.split(",")
+            if len(parts) >= 6:
+                write_log(f"  OUTPUT:")
+                write_log(f"    - Societe: {parts[0]}")
+                write_log(f"    - Pertinence: {parts[5]}")
+        elif result.error:
+            write_log(f"  Erreur: {result.error}")
 
     results = await run_parallel(
         urls=urls,
@@ -114,26 +161,26 @@ async def _run_parallel_mode(urls: list[str], args: argparse.Namespace) -> None:
         max_workers=args.parallel,
         timeout=args.timeout,
         retry_count=args.retry,
-    )
-
-    # Fusion des resultats
-    merge_results_to_csv(
-        results=results,
-        output_path=ANALYSIS_OUTPUT / "company_report.csv",
-        backup_dir=ANALYSIS_OUTPUT / "backups",
+        output_path=output_path,
+        on_result=on_result,
     )
 
     # Resume
     success = sum(1 for r in results if r.status.value == "success")
     failed = sum(1 for r in results if r.status.value == "failed")
-    timeout = sum(1 for r in results if r.status.value == "timeout")
+    timeout_count = sum(1 for r in results if r.status.value == "timeout")
 
-    print(f"\n{'=' * 50}")
-    print("[DONE] Resultats:")
-    print(f"  - Succes: {success}")
-    print(f"  - Echecs: {failed}")
-    print(f"  - Timeouts: {timeout}")
-    print(f"[OUTPUT] {ANALYSIS_OUTPUT / 'company_report.csv'}")
+    write_log("\n" + "=" * 70)
+    write_log("RESUME FINAL")
+    write_log("=" * 70)
+    write_log(f"  Total URLs: {len(urls)}")
+    write_log(f"  Succes: {success}")
+    write_log(f"  Echecs: {failed}")
+    write_log(f"  Timeouts: {timeout_count}")
+    write_log(f"\nFichier CSV: {output_path}")
+    write_log(f"Fichier log: {consolidated_log_path}")
+    write_log(f"Termine le: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    write_log("=" * 70)
 
     cleanup_old_logs(log_dir)
 

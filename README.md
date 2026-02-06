@@ -31,8 +31,10 @@ ANTHROPIC_API_KEY=...       # Required - Claude Sonnet 4.5
 # API Recherche (Required)
 SERPER_API_KEY=...          # Required - Recherche web
 
+# API Donnees Entreprises (Required)
+INSEE_SIRENE_API_KEY=...    # Required - API Sirene INSEE (gratuit)
+
 # APIs Enrichissement (Optional)
-PAPPERS_API_KEY=...         # Optional - Donnees legales entreprises
 HUNTER_API_KEY=...          # Optional - Decideurs via Hunter.io Domain Search
 GAMMA_API_KEY=...           # Optional - Creation pages web via API Gamma
 
@@ -50,7 +52,7 @@ LINKENER_PASSWORD=...       # Optional
 # Mode SEQUENTIEL (recommande) - 1 URL a la fois, sauvegarde CSV immediate
 python -m wakastart_leads.main run
 
-# Mode PARALLELE - N URLs simultanees, sauvegarde a la fin
+# Mode PARALLELE - N URLs simultanees, sauvegarde CSV incrementale
 python -m wakastart_leads.main run --parallel 3         # 3 workers
 python -m wakastart_leads.main run --parallel 5 --retry 2 --timeout 900
 
@@ -61,8 +63,8 @@ python -m wakastart_leads.main run --batch
 | Mode | Avantages | Inconvenients |
 |------|-----------|---------------|
 | **Sequentiel** (defaut) | Sauvegarde immediate, contexte frais par URL, logs TXT detailles | Plus lent |
-| **Parallele** | Rapide pour gros volumes | Sauvegarde uniquement a la fin |
-| **Batch** | Compatible legacy | Contexte sature si > 5 URLs |
+| **Parallele** | Rapide pour gros volumes, sauvegarde incrementale, logs TXT | Ordre des resultats non deterministe |
+| **Batch** | Compatible legacy | Pas de sauvegarde incrementale, contexte sature si > 5 URLs |
 
 ### Autres crews
 
@@ -144,7 +146,7 @@ Criteres (JSON) --> Decouverte web --> Validation legale --> Scan SaaS --> JSON 
 | Phase | Tache | Role |
 |-------|-------|------|
 | 1 | Decouverte web | Recherche via Serper selon criteres |
-| 2 | Validation legale | Verification via Pappers |
+| 2 | Validation legale | Verification via Sirene INSEE |
 | 3 | Scan SaaS | Verification SaaS approfondie + compilation JSON |
 
 - **Agent** : Expert en Veille Strategique & Detection SaaS (`saas_discovery_scout`)
@@ -175,7 +177,7 @@ Colonnes ajoutees :
 |------|-------------|-------------|
 | **ScrapeWebsiteTool** | CrewAI built-in | Scraping de contenu web |
 | **SerperDevTool** | CrewAI built-in | Recherche Google via API Serper |
-| **PappersSearchTool** | `shared/tools/` | Donnees legales entreprises (SIREN, dirigeants, CA) |
+| **SireneSearchTool** | `shared/tools/` | Donnees legales entreprises via API Sirene INSEE |
 | **HunterDomainSearchTool** | `crews/analysis/tools/` | Enrichissement decideurs via Hunter.io Domain Search |
 | **GammaCreateTool** | `crews/analysis/tools/` | Creation pages web Gamma + raccourcissement URL Linkener |
 
@@ -300,6 +302,7 @@ Chaque crew genere ses logs dans son propre dossier `output/logs/` :
 
 **Crew Analysis** :
 - `run_YYYYMMDD_HHMMSS.txt` - Log TXT consolide (mode sequentiel) avec inputs, outputs et resume
+- `run_parallel_YYYYMMDD_HHMMSS.txt` - Log TXT consolide (mode parallele)
 - `run_YYYYMMDD_HHMMSS.json` - Log JSON (mode batch)
 - `{domain}_YYYYMMDD_HHMMSS.json` - Logs individuels par URL
 
@@ -335,7 +338,7 @@ RESUME FINAL
 
 ## Tests
 
-268 tests unitaires avec pytest couvrant les 3 crews, les 5 tools custom et les utilitaires.
+307 tests unitaires avec pytest couvrant les 3 crews, les 5 tools custom et les utilitaires.
 
 Tests pour `HunterDomainSearchTool` (27 tests) :
 - `TestBuildLinkedinUrl` (5 tests) - Construction URLs LinkedIn
@@ -348,10 +351,11 @@ Tests pour `GammaCreateTool` (56 tests) :
 - `TestGetLinkenerToken` (4 tests) - Authentification Linkener
 - `TestCreateLinkenerUrl` (5 tests) - Creation URLs courtes + gestion collisions
 
-Tests pour `parallel_runner.py` (21 tests) :
+Tests pour `parallel_runner.py` (25 tests) :
 - `TestCleanCsvRow` (5 tests) - Nettoyage outputs LLM (artefacts markdown, headers repetes)
 - `TestRunSingleUrl` (3 tests) - Execution async d'une URL
 - `TestRunParallel` (2 tests) - Execution parallele avec semaphore
+- `TestRunParallelIncremental` (4 tests) - Sauvegarde incrementale en mode parallele
 - `TestRunSequential` (2 tests) - Execution sequentielle avec sauvegarde immediate
 - `TestMergeResultsToCsv` (3 tests) - Fusion CSV avec backup
 - `TestAppendResultToCsv` (3 tests) - Ajout incremental au CSV
