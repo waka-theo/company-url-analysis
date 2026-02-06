@@ -1,6 +1,6 @@
 """Tools specifiques au crew Analysis."""
 
+from .apollo_tool import ApolloSearchTool
 from .gamma_tool import GammaCreateTool
-from .hunter_tool import HunterDomainSearchTool
 
-__all__ = ["GammaCreateTool", "HunterDomainSearchTool"]
+__all__ = ["ApolloSearchTool", "GammaCreateTool"]

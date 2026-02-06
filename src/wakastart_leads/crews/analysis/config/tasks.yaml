@@ -256,52 +256,41 @@ gamma_webpage_creation:
 
 decision_makers_identification:
   description: |-
-    ACT 5 - Identification des Décisionnaires avec Enrichissement Email Zeliq
+    ACT 5 - Identification des Décisionnaires via Apollo.io
 
-    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés via Hunter.io,
-    puis enrichir leurs emails via Zeliq pour obtenir des adresses plus fiables.
+    Pour chaque entreprise qualifiée, identifier jusqu'à 3 décideurs clés via Apollo.io.
+    L'outil apollo_search effectue automatiquement la recherche ET l'enrichissement.
 
     ÉTAPE 1 - RÉCUPÉRER LE DOMAINE depuis le contexte des tâches précédentes :
     - Extraire le domaine (ex: stripe.com) depuis l'URL du site web identifié en ACT 0+1
     - Ne pas inclure https:// ni www., juste le domaine nu
 
-    ÉTAPE 2 - APPELER OBLIGATOIREMENT l'outil hunter_domain_search avec :
+    ÉTAPE 2 - APPELER OBLIGATOIREMENT l'outil apollo_search avec :
     - domain : Le domaine de l'entreprise (ex: stripe.com)
     - company_name : Le nom de l'entreprise (ex: Stripe)
 
-    L'outil Hunter retourne automatiquement jusqu'à 3 décideurs avec :
+    L'outil Apollo effectue automatiquement :
+    1. Recherche des décideurs C-Level et Management dans la base Apollo (gratuit)
+    2. Enrichissement des 3 meilleurs profils avec coordonnées complètes (email, LinkedIn)
+
+    Résultat retourné directement :
     - Nom complet (Prénom NOM)
     - Titre/Fonction exacte
-    - Email professionnel (sera enrichi par Zeliq)
-    - Numéro de téléphone professionnel
+    - Email professionnel vérifié
     - URL du profil LinkedIn
 
-    ÉTAPE 3 - ENRICHISSEMENT ZELIQ (OBLIGATOIRE pour chaque décideur avec LinkedIn) :
-    Pour CHAQUE décideur ayant une URL LinkedIn valide, appeler zeliq_email_enrich avec :
-    - first_name : Prénom du décideur
-    - last_name : Nom du décideur
-    - company : Le domaine de l'entreprise
-    - linkedin_url : L'URL LinkedIn retournée par Hunter
-
-    RÈGLE DE PRIORITÉ EMAIL :
-    - Si Zeliq retourne un email → UTILISER l'email Zeliq (plus fiable)
-    - Si Zeliq échoue ou timeout → CONSERVER l'email Hunter (fallback)
-    - L'email final dans le CSV doit être l'email Zeliq si disponible
-
     IMPORTANT :
-    - Appeler hunter_domain_search UNE SEULE FOIS par entreprise
-    - Appeler zeliq_email_enrich pour CHAQUE décideur ayant un LinkedIn valide
+    - Appeler apollo_search UNE SEULE FOIS par entreprise
     - Ne JAMAIS inventer ou fabriquer un contact
-    - Si un décideur n'a pas de LinkedIn, conserver l'email Hunter
+    - Si aucun décideur n'est trouvé, indiquer "Non trouvé" pour tous les champs
 
   expected_output: >
     Pour chaque entreprise, fournir EXACTEMENT ce format pour chaque décideur (jusqu'à 3) :
-    - Décideur 1 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
-    - Décideur 2 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
-    - Décideur 3 : [Prénom NOM], [Titre exact], [Email Zeliq ou Hunter], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 1 : [Prénom NOM], [Titre exact], [Email], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 2 : [Prénom NOM], [Titre exact], [Email], [Téléphone ou Non trouvé], [URL LinkedIn complète]
+    - Décideur 3 : [Prénom NOM], [Titre exact], [Email], [Téléphone ou Non trouvé], [URL LinkedIn complète]
 
     IMPORTANT : Le nom doit TOUJOURS être complet (Prénom NOM).
-    L'email doit être celui de Zeliq si disponible, sinon celui de Hunter.
     Si un décideur n'est pas trouvé, indiquer "Non trouvé" pour TOUS ses champs.
 
   agent: lead_generation_expert

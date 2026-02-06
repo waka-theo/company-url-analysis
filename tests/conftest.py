@@ -4,10 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from wakastart_leads.crews.analysis.tools.apollo_tool import ApolloSearchTool
 from wakastart_leads.crews.analysis.tools.gamma_tool import GammaCreateTool
-from wakastart_leads.crews.analysis.tools.hunter_tool import HunterDomainSearchTool
-from wakastart_leads.crews.analysis.tools.kaspr_tool import KasprEnrichTool
-from wakastart_leads.crews.analysis.tools.zeliq_tool import ZeliqEmailEnrichTool
 from wakastart_leads.shared.tools.pappers_tool import PappersSearchTool
 from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
@@ -17,9 +15,9 @@ from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
 
 @pytest.fixture()
-def mock_kaspr_api_key(monkeypatch):
-    """Injecte une cle API Kaspr de test."""
-    monkeypatch.setenv("KASPR_API_KEY", "test-kaspr-key-12345")
+def mock_apollo_api_key(monkeypatch):
+    """Injecte une cle API Apollo de test."""
+    monkeypatch.setenv("APOLLO_API_KEY", "test-apollo-key-12345")
 
 
 @pytest.fixture()
@@ -35,18 +33,6 @@ def mock_gamma_api_key(monkeypatch):
 
 
 @pytest.fixture()
-def mock_hunter_api_key(monkeypatch):
-    """Injecte une cle API Hunter de test."""
-    monkeypatch.setenv("HUNTER_API_KEY", "test-hunter-key-12345")
-
-
-@pytest.fixture()
-def mock_zeliq_api_key(monkeypatch):
-    """Injecte une cle API Zeliq de test."""
-    monkeypatch.setenv("ZELIQ_API_KEY", "test-zeliq-key-12345")
-
-
-@pytest.fixture()
 def mock_sirene_api_key(monkeypatch):
     """Injecte une cle API Sirene INSEE de test."""
     monkeypatch.setenv("INSEE_SIRENE_API_KEY", "test-sirene-key-12345")
@@ -55,19 +41,10 @@ def mock_sirene_api_key(monkeypatch):
 @pytest.fixture()
 def clear_all_api_keys(monkeypatch):
     """Supprime toutes les cles API de l'environnement."""
-    monkeypatch.delenv("KASPR_API_KEY", raising=False)
+    monkeypatch.delenv("APOLLO_API_KEY", raising=False)
     monkeypatch.delenv("PAPPERS_API_KEY", raising=False)
     monkeypatch.delenv("GAMMA_API_KEY", raising=False)
-    monkeypatch.delenv("HUNTER_API_KEY", raising=False)
-    monkeypatch.delenv("ZELIQ_API_KEY", raising=False)
-    monkeypatch.delenv("ZELIQ_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("INSEE_SIRENE_API_KEY", raising=False)
-
-
-@pytest.fixture()
-def clear_zeliq_webhook_url(monkeypatch):
-    """Supprime ZELIQ_WEBHOOK_URL pour forcer le mode webhook.site."""
-    monkeypatch.delenv("ZELIQ_WEBHOOK_URL", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +53,8 @@ def clear_zeliq_webhook_url(monkeypatch):
 
 
 @pytest.fixture()
-def kaspr_tool():
-    return KasprEnrichTool()
+def apollo_tool():
+    return ApolloSearchTool()
 
 
 @pytest.fixture()
@@ -88,16 +65,6 @@ def pappers_tool():
 @pytest.fixture()
 def gamma_tool():
     return GammaCreateTool()
-
-
-@pytest.fixture()
-def hunter_tool():
-    return HunterDomainSearchTool()
-
-
-@pytest.fixture()
-def zeliq_tool():
-    return ZeliqEmailEnrichTool()
 
 
 @pytest.fixture()
@@ -128,53 +95,261 @@ def mock_response():
 
 
 # ---------------------------------------------------------------------------
-# Fixtures de donnees API - Kaspr
+# Fixtures de donnees API - Apollo (People API Search)
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
-def kaspr_full_response():
-    """Reponse Kaspr complete avec tous les champs."""
+def apollo_search_response():
+    """Reponse Apollo People API Search avec 3 decideurs."""
     return {
-        "profile": {
-            "professionalEmails": ["jean.dupont@company.com"],
-            "personalEmails": ["jean@gmail.com"],
-            "starryProfessionalEmail": "j***@company.com",
-            "starryPersonalEmail": "j***@gmail.com",
-            "phones": ["+33612345678"],
-            "starryPhone": "+336****5678",
-            "title": "CTO",
-            "company": {"name": "WakaStellar"},
+        "total_entries": 3,
+        "people": [
+            {
+                "id": "apollo-id-001",
+                "first_name": "Patrick",
+                "last_name_obfuscated": "Co***n",
+                "title": "Co-founder and CEO",
+                "last_refreshed_at": "2026-01-15T10:30:00.000Z",
+                "has_email": True,
+                "has_city": True,
+                "has_state": True,
+                "has_country": True,
+                "has_direct_phone": "Yes",
+                "organization": {
+                    "name": "Stripe",
+                    "has_industry": True,
+                    "has_phone": True,
+                    "has_city": True,
+                    "has_state": True,
+                    "has_country": True,
+                    "has_zip_code": True,
+                    "has_revenue": True,
+                    "has_employee_count": True,
+                },
+            },
+            {
+                "id": "apollo-id-002",
+                "first_name": "John",
+                "last_name_obfuscated": "Co***n",
+                "title": "President",
+                "last_refreshed_at": "2026-01-10T08:00:00.000Z",
+                "has_email": True,
+                "has_city": True,
+                "has_state": True,
+                "has_country": True,
+                "has_direct_phone": "No",
+                "organization": {
+                    "name": "Stripe",
+                    "has_industry": True,
+                    "has_phone": True,
+                    "has_city": True,
+                    "has_state": True,
+                    "has_country": True,
+                    "has_zip_code": True,
+                    "has_revenue": True,
+                    "has_employee_count": True,
+                },
+            },
+            {
+                "id": "apollo-id-003",
+                "first_name": "David",
+                "last_name_obfuscated": "Si***n",
+                "title": "CTO",
+                "last_refreshed_at": "2026-01-12T14:00:00.000Z",
+                "has_email": True,
+                "has_city": True,
+                "has_state": True,
+                "has_country": True,
+                "has_direct_phone": "Yes",
+                "organization": {
+                    "name": "Stripe",
+                    "has_industry": True,
+                    "has_phone": True,
+                    "has_city": True,
+                    "has_state": True,
+                    "has_country": True,
+                    "has_zip_code": True,
+                    "has_revenue": True,
+                    "has_employee_count": True,
+                },
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def apollo_search_partial_response():
+    """Reponse Apollo People API Search avec 1 seul decideur."""
+    return {
+        "total_entries": 1,
+        "people": [
+            {
+                "id": "apollo-id-010",
+                "first_name": "Jean",
+                "last_name_obfuscated": "Du***t",
+                "title": "CEO",
+                "last_refreshed_at": "2026-01-05T10:00:00.000Z",
+                "has_email": True,
+                "has_city": False,
+                "has_state": False,
+                "has_country": True,
+                "has_direct_phone": "No",
+                "organization": {
+                    "name": "SmallCo",
+                    "has_industry": True,
+                    "has_phone": False,
+                    "has_city": True,
+                    "has_state": True,
+                    "has_country": True,
+                    "has_zip_code": False,
+                    "has_revenue": False,
+                    "has_employee_count": True,
+                },
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def apollo_search_empty_response():
+    """Reponse Apollo People API Search sans aucun resultat."""
+    return {
+        "total_entries": 0,
+        "people": [],
+    }
+
+
+@pytest.fixture()
+def apollo_search_needs_ranking_response():
+    """Reponse Apollo avec contacts a trier (director avant CEO dans la liste)."""
+    return {
+        "total_entries": 3,
+        "people": [
+            {
+                "id": "apollo-id-020",
+                "first_name": "Junior",
+                "last_name_obfuscated": "De***v",
+                "title": "Software Developer",
+                "has_email": True,
+                "has_direct_phone": "No",
+                "organization": {"name": "TestCo"},
+            },
+            {
+                "id": "apollo-id-021",
+                "first_name": "Senior",
+                "last_name_obfuscated": "Ma***r",
+                "title": "Engineering Director",
+                "has_email": True,
+                "has_direct_phone": "Yes",
+                "organization": {"name": "TestCo"},
+            },
+            {
+                "id": "apollo-id-022",
+                "first_name": "Big",
+                "last_name_obfuscated": "Bo***s",
+                "title": "CEO",
+                "has_email": True,
+                "has_direct_phone": "Yes",
+                "organization": {"name": "TestCo"},
+            },
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Fixtures de donnees API - Apollo (People Enrichment)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def apollo_enrich_ceo_response():
+    """Reponse Apollo People Enrichment pour un CEO."""
+    return {
+        "person": {
+            "id": "apollo-id-001",
+            "first_name": "Patrick",
+            "last_name": "Collison",
+            "name": "Patrick Collison",
+            "title": "Co-founder and CEO",
+            "email": "patrick@stripe.com",
+            "email_status": "verified",
+            "phone_number": None,
+            "linkedin_url": "https://www.linkedin.com/in/patrickcollison",
+            "organization": {
+                "id": "org-stripe",
+                "name": "Stripe",
+                "domain": "stripe.com",
+            },
         }
     }
 
 
 @pytest.fixture()
-def kaspr_empty_response():
-    """Reponse Kaspr sans emails ni telephones."""
+def apollo_enrich_president_response():
+    """Reponse Apollo People Enrichment pour un President."""
     return {
-        "profile": {
-            "professionalEmails": [],
-            "personalEmails": [],
-            "phones": [],
-            "title": None,
-            "company": None,
+        "person": {
+            "id": "apollo-id-002",
+            "first_name": "John",
+            "last_name": "Collison",
+            "name": "John Collison",
+            "title": "President",
+            "email": "john@stripe.com",
+            "email_status": "verified",
+            "phone_number": None,
+            "linkedin_url": "https://www.linkedin.com/in/johncollison",
+            "organization": {
+                "id": "org-stripe",
+                "name": "Stripe",
+                "domain": "stripe.com",
+            },
         }
     }
 
 
 @pytest.fixture()
-def kaspr_starry_response():
-    """Reponse Kaspr avec uniquement les champs starry (masques)."""
+def apollo_enrich_cto_response():
+    """Reponse Apollo People Enrichment pour un CTO."""
     return {
-        "profile": {
-            "professionalEmails": [],
-            "personalEmails": [],
-            "starryProfessionalEmail": "j***@company.com",
-            "starryPhone": "+336****5678",
-            "phones": [],
+        "person": {
+            "id": "apollo-id-003",
+            "first_name": "David",
+            "last_name": "Singleton",
+            "name": "David Singleton",
             "title": "CTO",
-            "company": {"name": "TestCorp"},
+            "email": "david@stripe.com",
+            "email_status": "verified",
+            "phone_number": None,
+            "linkedin_url": "https://www.linkedin.com/in/davidsingleton",
+            "organization": {
+                "id": "org-stripe",
+                "name": "Stripe",
+                "domain": "stripe.com",
+            },
+        }
+    }
+
+
+@pytest.fixture()
+def apollo_enrich_partial_response():
+    """Reponse Apollo People Enrichment avec champs manquants."""
+    return {
+        "person": {
+            "id": "apollo-id-010",
+            "first_name": "Jean",
+            "last_name": "Dupont",
+            "name": "Jean Dupont",
+            "title": "CEO",
+            "email": "jean@smallco.com",
+            "email_status": "verified",
+            "phone_number": None,
+            "linkedin_url": None,
+            "organization": {
+                "id": "org-smallco",
+                "name": "SmallCo",
+                "domain": "smallco.com",
+            },
         }
     }
 
@@ -273,226 +448,6 @@ def tmp_csv_file(tmp_path):
         return str(csv_file)
 
     return _create
-
-
-# ---------------------------------------------------------------------------
-# Fixtures de donnees API - Hunter
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def hunter_domain_search_response():
-    """Reponse Hunter Domain Search avec 3 decideurs."""
-    return {
-        "data": {
-            "domain": "stripe.com",
-            "organization": "Stripe",
-            "emails": [
-                {
-                    "value": "patrick@stripe.com",
-                    "type": "personal",
-                    "confidence": 97,
-                    "first_name": "Patrick",
-                    "last_name": "Collison",
-                    "position": "CEO",
-                    "seniority": "executive",
-                    "department": "executive",
-                    "linkedin": "patrickcollison",
-                    "phone_number": "+1 555 123 4567",
-                },
-                {
-                    "value": "john@stripe.com",
-                    "type": "personal",
-                    "confidence": 95,
-                    "first_name": "John",
-                    "last_name": "Collison",
-                    "position": "President",
-                    "seniority": "executive",
-                    "department": "executive",
-                    "linkedin": "johncollison",
-                    "phone_number": None,
-                },
-                {
-                    "value": "claire@stripe.com",
-                    "type": "personal",
-                    "confidence": 90,
-                    "first_name": "Claire",
-                    "last_name": "Hughes",
-                    "position": "COO",
-                    "seniority": "senior",
-                    "department": "management",
-                    "linkedin": "clairehughes",
-                    "phone_number": "+1 555 987 6543",
-                },
-            ],
-        },
-        "meta": {
-            "results": 3,
-            "limit": 10,
-            "offset": 0,
-        },
-    }
-
-
-@pytest.fixture()
-def hunter_partial_response():
-    """Reponse Hunter avec seulement 1 decideur."""
-    return {
-        "data": {
-            "domain": "smallco.com",
-            "organization": "SmallCo",
-            "emails": [
-                {
-                    "value": "ceo@smallco.com",
-                    "type": "personal",
-                    "confidence": 85,
-                    "first_name": "Jean",
-                    "last_name": "Dupont",
-                    "position": "CEO",
-                    "seniority": "executive",
-                    "department": "executive",
-                    "linkedin": None,
-                    "phone_number": None,
-                },
-            ],
-        },
-        "meta": {"results": 1, "limit": 10, "offset": 0},
-    }
-
-
-@pytest.fixture()
-def hunter_empty_response():
-    """Reponse Hunter sans aucun resultat."""
-    return {
-        "data": {
-            "domain": "unknown.com",
-            "organization": None,
-            "emails": [],
-        },
-        "meta": {"results": 0, "limit": 10, "offset": 0},
-    }
-
-
-@pytest.fixture()
-def hunter_needs_sorting_response():
-    """Reponse Hunter avec contacts a trier (senior avant executive dans la liste)."""
-    return {
-        "data": {
-            "domain": "testco.com",
-            "organization": "TestCo",
-            "emails": [
-                {
-                    "value": "dev@testco.com",
-                    "type": "personal",
-                    "confidence": 99,
-                    "first_name": "Junior",
-                    "last_name": "Dev",
-                    "position": "Developer",
-                    "seniority": "junior",
-                    "department": "it",
-                    "linkedin": "juniordev",
-                    "phone_number": None,
-                },
-                {
-                    "value": "manager@testco.com",
-                    "type": "personal",
-                    "confidence": 80,
-                    "first_name": "Senior",
-                    "last_name": "Manager",
-                    "position": "Engineering Manager",
-                    "seniority": "senior",
-                    "department": "management",
-                    "linkedin": "seniormanager",
-                    "phone_number": "+1 555 111 2222",
-                },
-                {
-                    "value": "ceo@testco.com",
-                    "type": "personal",
-                    "confidence": 70,
-                    "first_name": "Big",
-                    "last_name": "Boss",
-                    "position": "CEO",
-                    "seniority": "executive",
-                    "department": "executive",
-                    "linkedin": "bigboss",
-                    "phone_number": "+1 555 000 0000",
-                },
-            ],
-        },
-        "meta": {"results": 3, "limit": 10, "offset": 0},
-    }
-
-
-# ---------------------------------------------------------------------------
-# Fixtures de donnees API - Zeliq
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def zeliq_success_response():
-    """Reponse Zeliq avec email enrichi."""
-    return {
-        "credit_used": "2",
-        "contact": {
-            "first_name": "Patrick",
-            "last_name": "Collison",
-            "domain": "stripe.com",
-            "linkedin_url": "https://www.linkedin.com/in/patrickcollison",
-            "most_probable_email": "patrick@stripe.com",
-            "most_probable_email_status": "safe to send",
-            "emails": [
-                {"email": "patrick@stripe.com", "status": "safe to send"},
-                {"email": "p.collison@stripe.com", "status": "risky"},
-            ],
-        },
-    }
-
-
-@pytest.fixture()
-def zeliq_no_email_response():
-    """Reponse Zeliq sans email trouve."""
-    return {
-        "credit_used": "0",
-        "contact": {
-            "first_name": "John",
-            "last_name": "Doe",
-            "domain": None,
-            "linkedin_url": "https://www.linkedin.com/in/johndoe",
-            "most_probable_email": None,
-            "most_probable_email_status": None,
-            "emails": [],
-        },
-    }
-
-
-@pytest.fixture()
-def webhook_site_token_response():
-    """Reponse webhook.site pour creation de token."""
-    return {
-        "uuid": "abc123-def456-ghi789",
-    }
-
-
-@pytest.fixture()
-def webhook_site_requests_response(zeliq_success_response):
-    """Reponse webhook.site avec les requetes recues."""
-    import json
-
-    return {
-        "data": [
-            {
-                "uuid": "req-001",
-                "content": json.dumps(zeliq_success_response),
-                "created_at": "2026-02-04T10:00:00Z",
-            }
-        ]
-    }
-
-
-@pytest.fixture()
-def webhook_site_empty_response():
-    """Reponse webhook.site sans requetes (Zeliq n'a pas encore repondu)."""
-    return {"data": []}
 
 
 # ---------------------------------------------------------------------------

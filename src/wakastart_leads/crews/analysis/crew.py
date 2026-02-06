@@ -6,9 +6,8 @@ from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 
 from wakastart_leads.shared.tools.sirene_tool import SireneSearchTool
 
+from .tools.apollo_tool import ApolloSearchTool
 from .tools.gamma_tool import GammaCreateTool
-from .tools.hunter_tool import HunterDomainSearchTool
-from .tools.zeliq_tool import ZeliqEmailEnrichTool
 
 
 @CrewBase
@@ -104,8 +103,7 @@ class AnalysisCrew:
                 SerperDevTool(),
                 ScrapeWebsiteTool(),
                 SireneSearchTool(),
-                HunterDomainSearchTool(),
-                ZeliqEmailEnrichTool(),
+                ApolloSearchTool(),
             ],
             reasoning=False,
             max_reasoning_attempts=None,
